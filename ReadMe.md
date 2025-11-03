@@ -96,6 +96,16 @@ The application provides a comprehensive interface for monitoring system perform
 - **Profile-driven onboarding** that preconfigures the entire experience based on user selection from Developer, Designer, Light Use, or Student profiles, with multi-select support for combined feature sets.
 - **Keyboard shortcut remapping** allowing users to customise hotkeys for toggling the notch, opening panels, activating the colour picker, starting timers, and launching utility tools.
 
+### Circular widgets (lock screen)
+- **Circular / Gauge styles**: Lock screen widgets now include a dedicated circular mode that uses full circular gauges for charging, Bluetooth battery, AQI, and temperature. Gauges rely on the system accessory styles to match platform appearance and respect the monochrome tint preference.
+- **Inline vs circular**: Inline mode keeps icon + text on a single baseline (no gauges). Circular mode increases widget sizing to match iOS-like reference visuals and adds top padding so the widget sits visually aligned with the lock screen clock.
+- **AQI & provider handling**: AQI is shown only when the Open Meteo provider is active. A provider toggle in Settings selects between Open Meteo and wttr; AQI is disabled for wttr.
+- **Battery & charging behaviour**: Charging state hides the standalone battery gauge and shows charging-specific accessory circular capacity. Bluetooth circular badge displays only the icon with a surrounding progress ring; battery percentages display actual values (e.g., 100%) and adopt system colouring when appropriate.
+
+<p align="center">
+  <img src=".github/assets/CircularLockScreenWidgets.png" alt="Circular lock screen widgets" width="640">
+</p>
+
 ## Requirements
 - **macOS Sonoma 14.0** or later, optimised for macOS Sequoia 15.0 and subsequent releases.
 - **MacBook with notch** including 14-inch and 16-inch MacBook Pro models across M1 Pro, M1 Max, M2 Pro, M2 Max, M3 Pro, M3 Max, M4 Pro, and M4 Max configurations.
@@ -158,6 +168,16 @@ The application provides a comprehensive interface for monitoring system perform
 - Start, pause, or reset timers from the Timer tab or menu bar shortcuts.
 - Timers continue running as live activities even when the notch is closed, with notifications at completion.
 - Manage multiple concurrent timers and view remaining time for all active timers at a glance.
+
+- Timer controls live in a right-side popover alongside other notch icons and are also available from the menu bar. Timers run as live activities when the notch is closed: the timer icon remains neutral when idle and adopts the configured tint while running.
+
+- Progress and display options: choose circular ring or linear bar progress, toggle countdown text on/off, and allow the ring size to adapt to title width to avoid overlap with the notch.
+
+- Settings: timer tint (gradient vs solid), progress style (circular or bar), and countdown visibility.
+
+<p align="center">
+  <img src=".github/assets/timer.gif" alt="Timer controls and live activity" width="640">
+</p>
 
 ### Customisation
 - Open Settings from the menu bar icon to adjust features, appearance, behaviour, keyboard shortcuts, and privacy permissions.
