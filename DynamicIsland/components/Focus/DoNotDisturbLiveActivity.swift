@@ -66,7 +66,13 @@ struct DoNotDisturbLiveActivity: View {
     private var desiredLabelWidth: CGFloat {
         let measuredWidth = labelIntrinsicWidth + 8 // horizontal padding inside the label
         let fallbackWidth = max(vm.closedNotchSize.width * 0.52, 136)
-        return max(measuredWidth, fallbackWidth)
+        var width = max(measuredWidth, fallbackWidth)
+
+        if focusMode == .doNotDisturb && shouldShowLabel {
+            width = max(width, 164)
+        }
+
+        return width
     }
 
     private var shouldShowLabel: Bool {
@@ -89,15 +95,12 @@ struct DoNotDisturbLiveActivity: View {
     private var labelText: String {
         let trimmed = manager.currentFocusModeName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
-            if focusMode == .doNotDisturb {
-                return "Focus"
-            }
             return trimmed
         }
 
         let fallback = focusMode.displayName
         if focusMode == .doNotDisturb {
-            return "Focus"
+            return "Do Not Disturb"
         }
         return fallback.isEmpty ? "Focus" : fallback
     }
@@ -110,13 +113,13 @@ struct DoNotDisturbLiveActivity: View {
         }
     }
 
-    private var currentIconName: String {
+    private var currentIcon: Image {
         if manager.isDoNotDisturbActive {
-            return focusMode.sfSymbol
+            return focusMode.activeIcon
         } else if showInactiveIcon {
-            return focusMode.inactiveSymbol
+            return Image(systemName: focusMode.inactiveSymbol)
         } else {
-            return focusMode.sfSymbol
+            return focusMode.activeIcon
         }
     }
 
@@ -136,7 +139,7 @@ struct DoNotDisturbLiveActivity: View {
         Color.clear
             .overlay(alignment: .center) {
                 if iconWingWidth > 0 {
-                    Image(systemName: currentIconName)
+                    currentIcon
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(currentIconColor)
                         .contentTransition(.opacity)

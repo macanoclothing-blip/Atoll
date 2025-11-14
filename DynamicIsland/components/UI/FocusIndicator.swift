@@ -14,7 +14,7 @@ struct FocusIndicator: View {
         Capsule()
             .fill(Color.black)
             .overlay {
-                Image(systemName: focusSymbol)
+                focusIcon
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(accentColor)
                     .frame(width: 24, height: 24)
@@ -30,8 +30,8 @@ struct FocusIndicator: View {
         )
     }
 
-    private var focusSymbol: String {
-        focusMode.sfSymbol
+    private var focusIcon: Image {
+        focusMode.activeIcon
     }
 
     private var accentColor: Color {
