@@ -1748,34 +1748,6 @@ struct Shortcuts: View {
                 Section {
                     HStack {
                         VStack(alignment: .leading) {
-                            KeyboardShortcuts.Recorder("Stats Panel:", name: .statsPanel)
-                                .disabled(!enableShortcuts || !enableStatsFeature || !Defaults[.showStatsPanel])
-                            if !enableStatsFeature {
-                                Text("Stats feature is disabled")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 2)
-                            } else if !Defaults[.showStatsPanel] {
-                                Text("Stats panel is disabled")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 2)
-                            }
-                        }
-                        Spacer()
-                    }
-                } header: {
-                    Text("Stats")
-                } footer: {
-                    Text("Opens the detailed system performance monitor panel. Default is Cmd+Shift+S. Only works when stats feature is enabled.")
-                        .multilineTextAlignment(.trailing)
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                }
-                
-                Section {
-                    HStack {
-                        VStack(alignment: .leading) {
                             KeyboardShortcuts.Recorder("Color Picker Panel:", name: .colorPickerPanel)
                                 .disabled(!enableShortcuts || !enableColorPickerFeature)
                             if !enableColorPickerFeature {
@@ -2260,15 +2232,31 @@ private struct TimerPresetComponentControl: View {
 struct StatsSettings: View {
     @ObservedObject var statsManager = StatsManager.shared
     @Default(.enableStatsFeature) var enableStatsFeature
+    @Default(.statsStopWhenNotchCloses) var statsStopWhenNotchCloses
+    @Default(.statsUpdateInterval) var statsUpdateInterval
     @Default(.showCpuGraph) var showCpuGraph
     @Default(.showMemoryGraph) var showMemoryGraph
     @Default(.showGpuGraph) var showGpuGraph
     @Default(.showNetworkGraph) var showNetworkGraph
     @Default(.showDiskGraph) var showDiskGraph
-    @Default(.showStatsPanel) var showStatsPanel
     
     var enabledGraphsCount: Int {
         [showCpuGraph, showMemoryGraph, showGpuGraph, showNetworkGraph, showDiskGraph].filter { $0 }.count
+    }
+
+    private var formattedUpdateInterval: String {
+        let seconds = Int(statsUpdateInterval.rounded())
+        if seconds >= 60 {
+            return "60 s (1 min)"
+        } else if seconds == 1 {
+            return "1 s"
+        } else {
+            return "\(seconds) s"
+        }
+    }
+
+    private var shouldShowStatsBatteryWarning: Bool {
+        !statsStopWhenNotchCloses && statsUpdateInterval <= 5
     }
     
     var body: some View {
@@ -2282,26 +2270,55 @@ struct StatsSettings: View {
                         // Note: Smart monitoring will handle starting when switching to stats tab
                     }
                 
-                if enableStatsFeature {
-                    Defaults.Toggle("Enable detailed stats panel", key: .showStatsPanel)
-                }
             } header: {
                 Text("General")
             } footer: {
-                if enableStatsFeature && showStatsPanel {
-                    Text("Stats monitoring displays performance graphs in the Dynamic Island. The detailed panel (Cmd+Shift+S) shows Activity Monitor-style detailed graphs and metrics.")
-                        .multilineTextAlignment(.trailing)
-                        .foregroundStyle(.secondary)
+                Text("When enabled, the Stats tab will display real-time system performance graphs. This feature requires system permissions and may use additional battery.")
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+            
+            if enableStatsFeature {
+                Section {
+                    Defaults.Toggle("Stop monitoring after closing the notch", key: .statsStopWhenNotchCloses)
+                        .help("When enabled, stats monitoring stops a few seconds after the notch closes.")
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Update interval")
+                            Spacer()
+                            Text(formattedUpdateInterval)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Slider(value: $statsUpdateInterval, in: 1...60, step: 1)
+                            .accessibilityLabel("Stats update interval")
+
+                        Text("Controls how often system metrics refresh while monitoring is active.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if shouldShowStatsBatteryWarning {
+                        Label {
+                            Text("High-frequency updates without a timeout can increase battery usage.")
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                        }
                         .font(.caption)
-                } else {
-                    Text("When enabled, the Stats tab will display real-time system performance graphs. This feature requires system permissions and may use additional battery.")
+                        .foregroundStyle(.orange)
+                        .padding(.top, 4)
+                    }
+                } header: {
+                    Text("Monitoring Behavior")
+                } footer: {
+                    Text("Sampling can continue while the notch is closed when the timeout is disabled.")
                         .multilineTextAlignment(.trailing)
                         .foregroundStyle(.secondary)
                         .font(.caption)
                 }
-            }
-            
-            if enableStatsFeature {
+
                 Section {
                     Defaults.Toggle("CPU Usage", key: .showCpuGraph)
                     Defaults.Toggle("Memory Usage", key: .showMemoryGraph) 
