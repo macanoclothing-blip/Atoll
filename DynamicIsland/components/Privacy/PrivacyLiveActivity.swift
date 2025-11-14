@@ -110,8 +110,7 @@ struct PrivacyLiveActivity: View {
 // Individual privacy icon component
 struct PrivacyIcon: View {
     let type: PrivacyIndicatorType
-    @State private var isPulsing = false
-    
+
     // Color based on type: camera = #26CC41, mic = #FF9402
     private var iconColor: Color {
         type == .camera ? Color(red: 0.152, green: 0.804, blue: 0.256) : Color(red: 1.000, green: 0.584, blue: 0.010)
@@ -123,12 +122,7 @@ struct PrivacyIcon: View {
             .font(.system(size: 13, weight: .semibold))
             .foregroundColor(iconColor)
             .frame(width: 24, height: 24)
-            .scaleEffect(isPulsing ? 1.1 : 1.0)
-            .opacity(isPulsing ? 1.0 : 0.85)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                    isPulsing = true
-                }
-            }
+            .scaleEffect(1.0)
+            .opacity(1.0)
     }
 }
