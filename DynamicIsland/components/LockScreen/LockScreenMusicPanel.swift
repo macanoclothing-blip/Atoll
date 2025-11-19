@@ -15,6 +15,7 @@ struct LockScreenMusicPanel: View {
     @ObservedObject var musicManager = MusicManager.shared
     @ObservedObject private var routeManager = AudioRouteManager.shared
     @StateObject private var volumeModel = MediaOutputVolumeViewModel()
+    @ObservedObject private var animator: LockScreenPanelAnimator
     @State private var sliderValue: Double = 0
     @State private var dragging: Bool = false
     @State private var isActive = true
@@ -26,6 +27,14 @@ struct LockScreenMusicPanel: View {
     @Default(.lockScreenPanelShowsBorder) var showPanelBorder
     @Default(.lockScreenPanelUsesBlur) var enableBlur
     @Default(.showMediaOutputControl) var showMediaOutputControl
+    @Default(.showShuffleAndRepeat) var showShuffleAndRepeat
+    @Default(.musicAuxLeftControl) private var leftAuxControl
+    @Default(.musicAuxRightControl) private var rightAuxControl
+    @Default(.enableLyrics) private var enableLyrics
+
+    init(animator: LockScreenPanelAnimator) {
+        _animator = ObservedObject(wrappedValue: animator)
+    }
     
     private let collapsedPanelCornerRadius: CGFloat = 28
     private let expandedPanelCornerRadius: CGFloat = 52
@@ -35,10 +44,12 @@ struct LockScreenMusicPanel: View {
     private let collapseTimeout: TimeInterval = 5
     private let collapsedSliderExtraHeight: CGFloat = 72
     private let expandedSliderExtraHeight: CGFloat = 88
+    private let collapsedLyricsExtraHeight: CGFloat = 64
+    private let expandedLyricsExtraHeight: CGFloat = 96
 
     private var currentSize: CGSize {
         let base = isExpanded ? Self.expandedSize : Self.collapsedSize
-        return CGSize(width: base.width, height: base.height + sliderExtraHeight)
+        return CGSize(width: base.width, height: base.height + totalExtraHeight)
     }
 
     private var panelCornerRadius: CGFloat {
@@ -70,11 +81,7 @@ struct LockScreenMusicPanel: View {
                 sliderValue = musicManager.elapsedTime
                 isActive = true
                 logPanelAppearance()
-                LockScreenPanelManager.shared.updatePanelSize(
-                    expanded: isExpanded,
-                    additionalHeight: sliderHeight(forExpanded: isExpanded, visible: shouldShowVolumeSlider),
-                    animated: false
-                )
+                updatePanelSize(animated: false)
                 routeManager.refreshDevices()
             }
             .onDisappear {
@@ -83,10 +90,7 @@ struct LockScreenMusicPanel: View {
                 isVolumeSliderVisible = false
             }
             .onChange(of: isExpanded) { _, expanded in
-                LockScreenPanelManager.shared.updatePanelSize(
-                    expanded: expanded,
-                    additionalHeight: sliderHeight(forExpanded: expanded, visible: shouldShowVolumeSlider)
-                )
+                updatePanelSize()
             }
             .onChange(of: showMediaOutputControl) { _, enabled in
                 if !enabled {
@@ -94,11 +98,16 @@ struct LockScreenMusicPanel: View {
                         isVolumeSliderVisible = false
                     }
                 }
-                LockScreenPanelManager.shared.updatePanelSize(
-                    expanded: isExpanded,
-                    additionalHeight: sliderHeight(forExpanded: isExpanded, visible: shouldShowVolumeSlider)
-                )
+                updatePanelSize()
             }
+            .onChange(of: enableLyrics) { _, _ in
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                    updatePanelSize()
+                }
+            }
+            .scaleEffect(animator.isPresented ? 1 : 0.9, anchor: .center)
+            .opacity(animator.isPresented ? 1 : 0)
+            .animation(.spring(response: 0.52, dampingFraction: 0.8), value: animator.isPresented)
     }
 
     @ViewBuilder
@@ -272,61 +281,88 @@ struct LockScreenMusicPanel: View {
     // MARK: - Progress Bar
     
     private var progressBar: some View {
-        TimelineView(.animation(minimumInterval: musicManager.playbackRate > 0 ? 0.1 : nil)) { timeline in
-            let currentElapsed = currentSliderValue(timeline.date)
-            
-            HStack(spacing: 8) {
-                // Elapsed time
-                Text(formatTime(dragging ? sliderValue : currentElapsed))
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.7))
-                    .frame(width: 42, alignment: .leading)
-                
-                // Progress bar
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        // Background track
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.white.opacity(0.2))
-                            .frame(height: 6)
-                        
-                        // Filled portion
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(sliderColor)
-                            .frame(width: max(0, geometry.size.width * (currentSliderValue(timeline.date) / max(musicManager.songDuration, 1))), height: 6)
+        TimelineView(
+            .animation(
+                minimumInterval: (!musicManager.isLiveStream && musicManager.playbackRate > 0) ? 0.1 : nil
+            )
+        ) { timeline in
+            let progressValue = dragging ? sliderValue : currentSliderValue(timeline.date)
+
+            if musicManager.isLiveStream {
+                LiveStreamProgressIndicator(tint: sliderColor)
+                    .frame(maxWidth: .infinity)
+            } else {
+                HStack(spacing: 8) {
+                    // Elapsed time
+                    Text(formatTime(progressValue))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.7))
+                        .frame(width: 42, alignment: .leading)
+
+                    // Progress bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // Background track
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.white.opacity(0.2))
+                                .frame(height: 6)
+
+                            // Filled portion
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(sliderColor)
+                                .frame(
+                                    width: max(
+                                        0,
+                                        geometry.size.width * (progressValue / max(musicManager.songDuration, 1))
+                                    ),
+                                    height: 6
+                                )
+                        }
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    registerInteraction()
+                                    dragging = true
+                                    let duration = max(musicManager.songDuration, 0.0001)
+                                    let clampedX = min(max(value.location.x, 0), geometry.size.width)
+                                    let newValue = Double(clampedX / geometry.size.width) * duration
+                                    sliderValue = min(max(0, newValue), musicManager.songDuration)
+                                }
+                                .onEnded { _ in
+                                    registerInteraction()
+                                    musicManager.seek(to: sliderValue)
+                                    dragging = false
+                                }
+                        )
                     }
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                registerInteraction()
-                                dragging = true
-                                let newValue = min(max(0, Double(value.location.x / geometry.size.width) * musicManager.songDuration), musicManager.songDuration)
-                                sliderValue = newValue
-                            }
-                            .onEnded { _ in
-                                registerInteraction()
-                                musicManager.seek(to: sliderValue)
-                                dragging = false
-                            }
-                    )
+                    .frame(height: 6)
+
+                    // Time remaining
+                    Text("-\(formatTime(max(musicManager.songDuration - progressValue, 0)))")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.7))
+                        .frame(width: 48, alignment: .trailing)
                 }
-                .frame(height: 6)
-                
-                // Time remaining
-                Text("-\(formatTime(musicManager.songDuration - (dragging ? sliderValue : currentElapsed)))")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.7))
-                    .frame(width: 48, alignment: .trailing)
             }
         }
         .onAppear {
             sliderValue = musicManager.elapsedTime
+        }
+        .onChange(of: musicManager.isLiveStream) { _, isLive in
+            if isLive {
+                dragging = false
+                sliderValue = 0
+            }
         }
     }
     
     private func currentSliderValue(_ date: Date) -> Double {
         if dragging {
             return sliderValue
+        }
+
+        if musicManager.isLiveStream {
+            return 0
         }
         
         if musicManager.isPlaying {
@@ -359,8 +395,9 @@ struct LockScreenMusicPanel: View {
     
     private func playbackControls(alignment: Alignment) -> some View {
         let spacing: CGFloat = isExpanded ? 24 : 20
+        let verticalSpacing: CGFloat = (shouldShowVolumeSlider || enableLyrics) ? 14 : 10
 
-        return VStack(spacing: shouldShowVolumeSlider ? 14 : 10) {
+        return VStack(spacing: verticalSpacing) {
             controlsRow(alignment: alignment, spacing: spacing)
 
             if shouldShowVolumeSlider {
@@ -368,16 +405,24 @@ struct LockScreenMusicPanel: View {
                     .frame(maxWidth: .infinity, alignment: alignment)
                     .transition(.scale(scale: 0.98, anchor: .top).combined(with: .opacity))
             }
+
+            if enableLyrics {
+                lyricsSection(alignment: alignment)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
         .frame(maxWidth: .infinity, alignment: alignment)
         .padding(.top, isExpanded ? 6 : 2)
         .animation(.spring(response: 0.45, dampingFraction: 0.82), value: shouldShowVolumeSlider)
+        .animation(.spring(response: 0.45, dampingFraction: 0.82), value: enableLyrics)
     }
 
     private func controlsRow(alignment: Alignment, spacing: CGFloat) -> some View {
-        HStack(spacing: spacing) {
-            controlButton(icon: "shuffle", isActive: musicManager.isShuffled) {
-                musicManager.toggleShuffle()
+        let controls = resolvedAuxControls
+
+        return HStack(spacing: spacing) {
+            if let leftControl = controls.left {
+                auxButton(for: leftControl)
             }
 
             controlButton(icon: "backward.fill", size: 18) {
@@ -390,12 +435,8 @@ struct LockScreenMusicPanel: View {
                 musicManager.nextTrack()
             }
 
-            if showMediaOutputControl {
-                mediaOutputControlButton
-            } else {
-                controlButton(icon: repeatIcon, isActive: musicManager.repeatMode != .off) {
-                    musicManager.toggleRepeat()
-                }
+            if let rightControl = controls.right {
+                auxButton(for: rightControl)
             }
         }
         .frame(maxWidth: .infinity, alignment: alignment)
@@ -418,7 +459,13 @@ struct LockScreenMusicPanel: View {
         .buttonStyle(PlainButtonStyle())
     }
     
-    private func controlButton(icon: String, size: CGFloat = 18, isActive: Bool = false, action: @escaping () -> Void) -> some View {
+    private func controlButton(
+        icon: String,
+        size: CGFloat = 18,
+        isActive: Bool = false,
+        activeColor: Color = .red,
+        action: @escaping () -> Void
+    ) -> some View {
         let frameSize: CGFloat = isExpanded ? 56 : 32
         let iconSize: CGFloat = isExpanded ? max(size, 24) : size
 
@@ -428,7 +475,7 @@ struct LockScreenMusicPanel: View {
         }) {
             Image(systemName: icon)
                 .font(.system(size: iconSize, weight: .medium))
-                .foregroundColor(isActive ? .red : .white.opacity(0.8))
+                .foregroundColor(isActive ? activeColor : .white.opacity(0.8))
                 .frame(width: frameSize, height: frameSize)
                 .contentShape(Rectangle())
         }
@@ -448,6 +495,93 @@ struct LockScreenMusicPanel: View {
         }
         .accessibilityLabel("Media output")
         .buttonStyle(PlainButtonStyle())
+    }
+
+    private func lyricsSection(alignment: Alignment) -> some View {
+        let line = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
+        let transition: AnyTransition = .asymmetric(
+            insertion: .move(edge: .bottom).combined(with: .opacity),
+            removal: .move(edge: .top).combined(with: .opacity)
+        )
+
+        return HStack(spacing: 8) {
+            if !line.isEmpty {
+                Image(systemName: "music.note")
+                    .font(.system(size: isExpanded ? 14 : 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.7))
+                    .symbolRenderingMode(.monochrome)
+
+                Text(line)
+                    .font(.system(size: isExpanded ? 14 : 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.88))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.trailing, 6)
+                    .id(line)
+                    .transition(transition)
+            }
+        }
+        .padding(.horizontal, isExpanded ? 10 : 8)
+        .padding(.top, isExpanded ? 12 : 8)
+        .frame(maxWidth: .infinity, alignment: alignment)
+        .animation(.smooth(duration: 0.32), value: line)
+    }
+
+    private var availableAuxControls: [MusicAuxiliaryControl] {
+        MusicAuxiliaryControl.allCases.filter { control in
+            control != .mediaOutput || showMediaOutputControl
+        }
+    }
+
+    private var resolvedAuxControls: (left: MusicAuxiliaryControl?, right: MusicAuxiliaryControl?) {
+        guard showShuffleAndRepeat else { return (nil, nil) }
+
+        let options = availableAuxControls
+        guard !options.isEmpty else { return (nil, nil) }
+
+        let left = options.contains(leftAuxControl) ? leftAuxControl : options.first!
+        var rightCandidate = options.contains(rightAuxControl) ? rightAuxControl : options.first!
+
+        if options.count == 1 {
+            return (left, nil)
+        }
+
+        if rightCandidate == left, let alternative = options.first(where: { $0 != left }) {
+            rightCandidate = alternative
+        }
+
+        if rightCandidate == left {
+            return (left, nil)
+        }
+
+        return (left, rightCandidate)
+    }
+
+    @ViewBuilder
+    private func auxButton(for control: MusicAuxiliaryControl) -> some View {
+        switch control {
+        case .shuffle:
+            controlButton(icon: "shuffle", isActive: musicManager.isShuffled) {
+                musicManager.toggleShuffle()
+            }
+        case .repeatMode:
+            controlButton(icon: repeatIcon, isActive: musicManager.repeatMode != .off) {
+                musicManager.toggleRepeat()
+            }
+        case .mediaOutput:
+            mediaOutputControlButton
+        case .lyrics:
+            controlButton(
+                icon: enableLyrics ? "quote.bubble.fill" : "quote.bubble",
+                isActive: enableLyrics,
+                activeColor: .accentColor
+            ) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                    enableLyrics.toggle()
+                }
+            }
+        }
     }
 
     private var repeatIcon: String {
@@ -501,6 +635,32 @@ struct LockScreenMusicPanel: View {
         sliderHeight(forExpanded: isExpanded, visible: shouldShowVolumeSlider)
     }
 
+    private var lyricsExtraHeight: CGFloat {
+        lyricsHeight(forExpanded: isExpanded, enabled: enableLyrics)
+    }
+
+    private var totalExtraHeight: CGFloat {
+        sliderExtraHeight + lyricsExtraHeight
+    }
+
+    private func lyricsHeight(forExpanded expanded: Bool, enabled: Bool) -> CGFloat {
+        guard enabled else { return 0 }
+        return expanded ? expandedLyricsExtraHeight : collapsedLyricsExtraHeight
+    }
+
+    private func panelAdditionalHeight(forExpanded expanded: Bool) -> CGFloat {
+        sliderHeight(forExpanded: expanded, visible: shouldShowVolumeSlider) +
+        lyricsHeight(forExpanded: expanded, enabled: enableLyrics)
+    }
+
+    private func updatePanelSize(animated: Bool = true) {
+        LockScreenPanelManager.shared.updatePanelSize(
+            expanded: isExpanded,
+            additionalHeight: panelAdditionalHeight(forExpanded: isExpanded),
+            animated: animated
+        )
+    }
+
     private var volumeIconName: String {
         if volumeModel.isMuted || volumeModel.level <= 0.001 {
             return "speaker.slash.fill"
@@ -517,6 +677,11 @@ struct LockScreenMusicPanel: View {
     }
 
     private func toggleVolumeSlider() {
+        guard showMediaOutputControl else {
+            isVolumeSliderVisible = false
+            return
+        }
+
         registerInteraction()
         let newState = !isVolumeSliderVisible
         if newState {
@@ -527,11 +692,7 @@ struct LockScreenMusicPanel: View {
             isVolumeSliderVisible = newState
         }
 
-        let targetHeight = sliderHeight(forExpanded: isExpanded, visible: shouldShowVolumeSlider)
-        LockScreenPanelManager.shared.updatePanelSize(
-            expanded: isExpanded,
-            additionalHeight: targetHeight
-        )
+        updatePanelSize()
     }
 
     private func sliderHeight(forExpanded expanded: Bool, visible: Bool) -> CGFloat {
