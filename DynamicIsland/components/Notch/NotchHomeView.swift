@@ -122,6 +122,7 @@ struct MusicControlsView: View {
     let showShuffleAndRepeat: Bool
     @Default(.musicAuxLeftControl) private var leftAuxControl
     @Default(.musicAuxRightControl) private var rightAuxControl
+    @Default(.musicSkipBehavior) private var musicSkipBehavior
     @Default(.enableLyrics) private var enableLyrics
 
     var body: some View {
@@ -214,20 +215,62 @@ struct MusicControlsView: View {
 
     private var playbackControls: some View {
         let controls = resolvedAuxControls
+        let seekInterval: TimeInterval = 10
+        let skipMagnitude: CGFloat = 6
+
+        let backwardConfig: (icon: String, press: HoverButton.PressEffect?, action: () -> Void)
+        let forwardConfig: (icon: String, press: HoverButton.PressEffect?, action: () -> Void)
+
+        switch musicSkipBehavior {
+        case .track:
+            backwardConfig = (
+                icon: "backward.fill",
+                press: .nudge(-skipMagnitude),
+                action: { musicManager.previousTrack() }
+            )
+            forwardConfig = (
+                icon: "forward.fill",
+                press: .nudge(skipMagnitude),
+                action: { musicManager.nextTrack() }
+            )
+        case .tenSecond:
+            backwardConfig = (
+                icon: "gobackward.10",
+                press: .wiggle(.counterClockwise),
+                action: { musicManager.seek(by: -seekInterval) }
+            )
+            forwardConfig = (
+                icon: "goforward.10",
+                press: .wiggle(.clockwise),
+                action: { musicManager.seek(by: seekInterval) }
+            )
+        }
 
         return HStack(spacing: 8) {
             if showShuffleAndRepeat {
                 auxButton(for: controls.left)
             }
-            HoverButton(icon: "backward.fill", scale: .medium, pressEffect: .nudge(-6)) {
-                MusicManager.shared.previousTrack()
+
+            HoverButton(
+                icon: backwardConfig.icon,
+                scale: .medium,
+                pressEffect: backwardConfig.press
+            ) {
+                backwardConfig.action()
             }
+
             HoverButton(icon: musicManager.isPlaying ? "pause.fill" : "play.fill", scale: .large) {
                 MusicManager.shared.togglePlay()
             }
-            HoverButton(icon: "forward.fill", scale: .medium, pressEffect: .nudge(6)) {
-                MusicManager.shared.nextTrack()
+
+            HoverButton(
+                icon: forwardConfig.icon,
+                scale: .medium,
+                pressEffect: forwardConfig.press
+            ) {
+                forwardConfig.action()
             }
+
             if showShuffleAndRepeat {
                 auxButton(for: controls.right)
             }
@@ -361,21 +404,32 @@ struct MusicSliderView: View {
     let isPlaying: Bool
     let isLiveStream: Bool
     var onValueChange: (Double) -> Void
+    var labelLayout: TimeLabelLayout = .stacked
+    var trailingLabel: TrailingLabel = .duration
+    var restingTrackHeight: CGFloat = 5
+    var draggingTrackHeight: CGFloat = 9
 
+    enum TimeLabelLayout {
+        case stacked
+        case inline
+    }
+
+    enum TrailingLabel {
+        case duration
+        case remaining
+    }
 
     var body: some View {
-        VStack {
-            sliderContent
-                .frame(height: 10, alignment: .center)
-            if !isLiveStream {
-                HStack {
-                    Text(timeString(from: sliderValue))
-                    Spacer()
-                    Text(timeString(from: duration))
+        Group {
+            if isLiveStream {
+                liveStreamView
+            } else {
+                switch labelLayout {
+                case .stacked:
+                    stackedContent
+                case .inline:
+                    inlineContent
                 }
-                .fontWeight(.medium)
-                .foregroundColor(timeLabelColor)
-                .font(.caption)
             }
         }
         .onChange(of: currentDate) { newDate in
@@ -390,21 +444,71 @@ struct MusicSliderView: View {
         }
     }
 
+    private var stackedContent: some View {
+        VStack(spacing: 6) {
+            sliderCore
+                .frame(height: sliderFrameHeight)
+
+            HStack {
+                Text(timeString(from: sliderValue))
+                Spacer()
+                Text(trailingTimeText)
+            }
+            .fontWeight(.medium)
+            .foregroundColor(timeLabelColor)
+            .font(.caption)
+        }
+    }
+
+    private var inlineContent: some View {
+        HStack(spacing: 10) {
+            Text(timeString(from: sliderValue))
+                .font(inlineLabelFont)
+                .foregroundColor(timeLabelColor)
+                .frame(width: 42, alignment: .leading)
+
+            sliderCore
+                .frame(height: sliderFrameHeight)
+                .frame(maxWidth: .infinity)
+
+            Text(trailingTimeText)
+                .font(inlineLabelFont)
+                .foregroundColor(timeLabelColor)
+                .frame(width: 48, alignment: .trailing)
+        }
+    }
+
     @ViewBuilder
-    private var sliderContent: some View {
-        if isLiveStream {
+    private var liveStreamView: some View {
+        switch labelLayout {
+        case .stacked:
             LiveStreamProgressIndicator(tint: sliderTint)
                 .frame(maxWidth: .infinity)
-        } else {
-            CustomSlider(
-                value: $sliderValue,
-                range: 0 ... duration,
-                color: sliderTint,
-                dragging: $dragging,
-                lastDragged: $lastDragged,
-                onValueChange: onValueChange
-            )
+                .frame(height: sliderFrameHeight)
+        case .inline:
+            HStack(spacing: 10) {
+                Spacer()
+                    .frame(width: 42)
+                LiveStreamProgressIndicator(tint: sliderTint)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: sliderFrameHeight)
+                Spacer()
+                    .frame(width: 48)
+            }
         }
+    }
+
+    private var sliderCore: some View {
+        CustomSlider(
+            value: $sliderValue,
+            range: 0 ... duration,
+            color: sliderTint,
+            dragging: $dragging,
+            lastDragged: $lastDragged,
+            onValueChange: onValueChange,
+            restingTrackHeight: restingTrackHeight,
+            draggingTrackHeight: draggingTrackHeight
+        )
     }
 
     private var sliderTint: Color {
@@ -422,6 +526,24 @@ struct MusicSliderView: View {
         Defaults[.playerColorTinting]
             ? Color(nsColor: color).ensureMinimumBrightness(factor: 0.6)
             : .gray
+    }
+
+    private var trailingTimeText: String {
+        switch trailingLabel {
+        case .duration:
+            return timeString(from: duration)
+        case .remaining:
+            let remaining = max(duration - sliderValue, 0)
+            return "-" + timeString(from: remaining)
+        }
+    }
+
+    private var inlineLabelFont: Font {
+        .system(size: 11, weight: .medium, design: .monospaced)
+    }
+
+    private var sliderFrameHeight: CGFloat {
+        max(restingTrackHeight, draggingTrackHeight)
     }
 
     func timeString(from seconds: Double) -> String {
@@ -448,11 +570,13 @@ struct CustomSlider: View {
     @Binding var lastDragged: Date
     var onValueChange: ((Double) -> Void)?
     var thumbSize: CGFloat = 12
+    var restingTrackHeight: CGFloat = 5
+    var draggingTrackHeight: CGFloat = 9
 
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
-            let height = CGFloat(dragging ? 9 : 5)
+            let trackHeight = CGFloat(dragging ? draggingTrackHeight : restingTrackHeight)
             let rangeSpan = range.upperBound - range.lowerBound
 
             let progress = rangeSpan == .zero ? 0 : (value - range.lowerBound) / rangeSpan
@@ -462,15 +586,15 @@ struct CustomSlider: View {
                 // Background track
                 Rectangle()
                     .fill(.gray.opacity(0.3))
-                    .frame(height: height)
+                    .frame(height: trackHeight)
 
                 // Filled track
                 Rectangle()
                     .fill(color)
-                    .frame(width: filledTrackWidth, height: height)
+                    .frame(width: filledTrackWidth, height: trackHeight)
             }
-            .cornerRadius(height / 2)
-            .frame(height: 10)
+            .cornerRadius(trackHeight / 2)
+            .frame(height: max(restingTrackHeight, draggingTrackHeight))
             .contentShape(Rectangle())
             .highPriorityGesture(
                 DragGesture(minimumDistance: 0)

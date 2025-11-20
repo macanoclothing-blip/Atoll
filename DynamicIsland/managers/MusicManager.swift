@@ -509,6 +509,28 @@ class MusicManager: ObservableObject {
         }
     }
 
+    func seek(by offset: TimeInterval) {
+        guard !isLiveStream else { return }
+        let duration = songDuration
+        guard duration > 0 else { return }
+
+        let current = estimatedPlaybackPosition()
+        let magnitude = abs(offset)
+
+        if offset < 0, current <= magnitude {
+            previousTrack()
+            return
+        }
+
+        if offset > 0, (duration - current) <= magnitude {
+            nextTrack()
+            return
+        }
+
+        let target = min(max(0, current + offset), duration)
+        seek(to: target)
+    }
+
     func openMusicApp() {
         guard let bundleID = bundleIdentifier else {
             print("Error: appBundleIdentifier is nil")
