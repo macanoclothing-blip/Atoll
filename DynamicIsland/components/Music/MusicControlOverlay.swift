@@ -82,6 +82,8 @@ struct MusicControlOverlay: View {
     }
 
     var body: some View {
+        let verticalPadding = max(8, notchHeight * 0.12)
+
         HStack(spacing: 18) {
             FloatingMediaButton(
                 icon: backwardConfig.icon,
@@ -116,12 +118,13 @@ struct MusicControlOverlay: View {
                 action: forwardConfig.action
             )
         }
+        .padding(.vertical, verticalPadding)
         .padding(.horizontal, 18)
         .frame(height: notchHeight)
         .frame(minWidth: buttonSide * 3.2)
         .background {
             RoundedRectangle(cornerRadius: windowCornerRadius, style: .continuous)
-                .fill(Color.black.opacity(0.88))
+            .fill(Color.black)
         }
         .compositingGroup()
         .animation(.smooth(duration: 0.2), value: musicManager.isPlaying)
@@ -179,7 +182,7 @@ private struct FloatingMediaButton: View {
 
     private var iconView: some View {
         let image = Image(systemName: icon)
-            .font(.system(size: min(frameSize.width, frameSize.height) * 0.42, weight: .semibold))
+            .font(.system(size: min(frameSize.width, frameSize.height) * 0.48, weight: .semibold))
             .foregroundColor(foregroundColor)
 
         switch symbolEffectStyle {

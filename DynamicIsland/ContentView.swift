@@ -117,7 +117,7 @@ struct ContentView: View {
     private let extendedHoverPadding: CGFloat = 30
     private let zeroHeightHoverPadding: CGFloat = 10
     private let statsAdditionalRowHeight: CGFloat = 110
-    private let musicControlPauseGrace: TimeInterval = 10
+    private let musicControlPauseGrace: TimeInterval = 5
     private let musicControlResumeDelay: TimeInterval = 0.24
     
     // Use minimalistic corner radius ONLY when opened, keep normal when closed
