@@ -587,6 +587,14 @@ extension Defaults.Keys {
     static let enableKeyboardBacklightHUD = Key<Bool>("enableKeyboardBacklightHUD", default: true)
     static let systemHUDSensitivity = Key<Int>("systemHUDSensitivity", default: 5)
     
+    // MARK: Custom OSD Window Feature
+    static let enableCustomOSD = Key<Bool>("enableCustomOSD", default: false)
+    static let enableOSDVolume = Key<Bool>("enableOSDVolume", default: true)
+    static let enableOSDBrightness = Key<Bool>("enableOSDBrightness", default: true)
+    static let enableOSDKeyboardBacklight = Key<Bool>("enableOSDKeyboardBacklight", default: true)
+    static let osdMaterial = Key<OSDMaterial>("osdMaterial", default: .frosted)
+    static let osdIconColorStyle = Key<OSDIconColorStyle>("osdIconColorStyle", default: .white)
+    
     // MARK: Screen Recording Detection Feature
     static let enableScreenRecordingDetection = Key<Bool>("enableScreenRecordingDetection", default: true)
     static let showRecordingIndicator = Key<Bool>("showRecordingIndicator", default: true)
