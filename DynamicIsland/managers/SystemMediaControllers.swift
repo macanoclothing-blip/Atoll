@@ -52,6 +52,7 @@ final class SystemVolumeController {
     private var listenersInstalled = false
     private var volumeElement: AudioObjectPropertyElement?
     private var muteElement: AudioObjectPropertyElement?
+    private let silenceThreshold: Float = 0.001 // Treat very low values as mute requests.
 
     private let candidateElements: [AudioObjectPropertyElement] = [
         kAudioObjectPropertyElementMain,
@@ -101,7 +102,13 @@ final class SystemVolumeController {
 
     func setVolume(_ value: Float) {
         let clamped = max(0, min(1, value))
-        if isMuted && clamped > 0 {
+        let currentlyMuted = isMuted
+
+        if clamped <= silenceThreshold {
+            if !currentlyMuted {
+                setMuted(true)
+            }
+        } else if currentlyMuted {
             setMuted(false)
         }
 
