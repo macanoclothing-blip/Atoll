@@ -296,27 +296,41 @@ struct EventListView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            List {
-                ForEach(filteredEvents) { event in
-                    Button(action: {
-                        if let url = event.calendarAppURL() {
-                            openURL(url)
+            ZStack {
+                List {
+                    ForEach(filteredEvents) { event in
+                        Button(action: {
+                            if let url = event.calendarAppURL() {
+                                openURL(url)
+                            }
+                        }) {
+                            eventRow(event)
                         }
-                    }) {
-                        eventRow(event)
+                        .id(event.id)
+                        .padding(.leading, -5)
+                        .buttonStyle(PlainButtonStyle())
+                        .listRowSeparator(.automatic)
+                        .listRowSeparatorTint(.gray.opacity(0.2))
+                        .listRowBackground(Color.clear)
                     }
-                    .id(event.id)
-                    .padding(.leading, -5)
-                    .buttonStyle(PlainButtonStyle())
-                    .listRowSeparator(.automatic)
-                    .listRowSeparatorTint(.gray.opacity(0.2))
-                    .listRowBackground(Color.clear)
                 }
+                .listStyle(.plain)
+                .scrollIndicators(.never)
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
+
+                LinearGradient(colors: [Color.black.opacity(0.65), .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 16)
+                    .allowsHitTesting(false)
+                    .alignmentGuide(.top) { d in d[.top] }
+                    .frame(maxHeight: .infinity, alignment: .top)
+
+                LinearGradient(colors: [.clear, Color.black.opacity(0.65)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 16)
+                    .allowsHitTesting(false)
+                    .alignmentGuide(.bottom) { d in d[.bottom] }
+                    .frame(maxHeight: .infinity, alignment: .bottom)
             }
-            .listStyle(.plain)
-            .scrollIndicators(.never)
-            .scrollContentBackground(.hidden)
-            .background(Color.clear)
             .onAppear {
                 scrollToRelevantEvent(proxy: proxy)
             }
