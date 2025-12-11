@@ -49,6 +49,13 @@ final class ShelfSelectionModel: ObservableObject {
         lastAnchorID = item.id
     }
 
+    func deselect(_ id: UUID) {
+        selectedIDs.remove(id)
+        if lastAnchorID == id {
+            lastAnchorID = nil
+        }
+    }
+
     func shiftSelect(to item: ShelfItem, in allItems: [ShelfItem]) {
         // Determine anchor
         let anchorID = lastAnchorID ?? selectedIDs.first ?? item.id

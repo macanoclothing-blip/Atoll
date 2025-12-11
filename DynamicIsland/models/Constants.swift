@@ -367,6 +367,13 @@ enum AIModelProvider: String, CaseIterable, Identifiable, Defaults.Serializable 
     }
 }
 
+enum ConversionViewStyle: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case `default` = "Default"
+    case popover = "Popover"
+    
+    var id: String { rawValue }
+}
+
 struct AIModel: Codable, Identifiable, Defaults.Serializable {
     let id: String
     let name: String
@@ -506,6 +513,9 @@ extension Defaults.Keys {
         static let copyOnDrag = Key<Bool>("copyOnDrag", default: false)
         static let autoRemoveShelfItems = Key<Bool>("autoRemoveShelfItems", default: false)
         static let expandedDragDetection = Key<Bool>("expandedDragDetection", default: true)
+        static let enableFileConversion = Key<Bool>("enableFileConversion", default: true)
+        static let conversionViewStyle = Key<ConversionViewStyle>("conversionViewStyle", default: .default)
+        static let keepImageMetadata = Key<Bool>("keepImageMetadata", default: true)
     
         // MARK: Calendar
     static let calendarSelectionState = Key<CalendarSelectionState>("calendarSelectionState", default: .all)

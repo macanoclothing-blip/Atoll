@@ -20,6 +20,7 @@ struct ShelfItemView: View {
     @State private var showStack = false
     @State private var cachedPreviewImage: NSImage?
     @State private var debouncedDropTarget = false
+    @State private var showingPopover = false
 
     private var isSelected: Bool { viewModel.isSelected }
     private var shouldHideDuringDrag: Bool { selection.isDragging && selection.isSelected(item.id) && false }
@@ -54,6 +55,9 @@ struct ShelfItemView: View {
                     onRightClick: viewModel.handleRightClick,
                     onClick: { event, nsview in
                         viewModel.handleClick(event: event, view: nsview)
+                        if Defaults[.enableFileConversion] && Defaults[.conversionViewStyle] == .popover {
+                            showingPopover = true
+                        }
                     }
                 )
             } else {
@@ -90,6 +94,15 @@ struct ShelfItemView: View {
             }
         }
         .quickLookPresenter(using: quickLookService)
+        .popover(isPresented: $showingPopover, arrowEdge: .bottom) {
+            ConversionPopoverView()
+                .onAppear {
+                    vm.isConversionPopoverActive = true
+                }
+                .onDisappear {
+                    vm.isConversionPopoverActive = false
+                }
+        }
     }
 
     // MARK: - View Components

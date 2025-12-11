@@ -1943,6 +1943,7 @@ struct Shelf: View {
     @Default(.expandedDragDetection) var expandedDragDetection
     @Default(.copyOnDrag) var copyOnDrag
     @Default(.autoRemoveShelfItems) var autoRemoveShelfItems
+    @Default(.conversionViewStyle) var conversionViewStyle
     @StateObject private var quickShareService = QuickShareService.shared
 
     private var selectedProvider: QuickShareProvider? {
@@ -1962,6 +1963,23 @@ struct Shelf: View {
             Section {
                 Defaults.Toggle("Enable shelf", key: .dynamicShelf)
                     .settingsHighlight(id: highlightID("Enable shelf"))
+
+                Defaults.Toggle("Enable File Conversion", key: .enableFileConversion)
+                    .settingsHighlight(id: highlightID("Enable File Conversion"))
+
+                if Defaults[.enableFileConversion] {
+                    Picker("Conversion View Style", selection: $conversionViewStyle) {
+                        ForEach(ConversionViewStyle.allCases) { style in
+                            Text(style.rawValue).tag(style)
+                        }
+                    }
+                    .settingsHighlight(id: highlightID("Conversion View Style"))
+                    .padding(.leading, 18)
+                    
+                    Defaults.Toggle("Keep Image Metadata", key: .keepImageMetadata)
+                        .settingsHighlight(id: highlightID("Keep Image Metadata"))
+                        .padding(.leading, 18)
+                }
 
                 Defaults.Toggle("Open shelf tab by default if items added", key: .openShelfByDefault)
                     .settingsHighlight(id: highlightID("Open shelf tab by default if items added"))

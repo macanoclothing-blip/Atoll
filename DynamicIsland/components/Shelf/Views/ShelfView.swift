@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import Defaults
 
 struct ShelfView: View {
     @EnvironmentObject var vm: DynamicIslandViewModel
@@ -20,10 +21,20 @@ struct ShelfView: View {
             FileShareView()
                 .aspectRatio(1, contentMode: .fit)
                 .environmentObject(vm)
-            panel
-                .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $vm.dragDetectorTargeting) { providers in
-                    handleDrop(providers: providers)
+            
+            HStack(spacing: 12) {
+                panel
+                    .frame(minWidth: 100)
+                
+                if selection.hasSelection && Defaults[.conversionViewStyle] == .default {
+                    ConversionActionView()
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selection.hasSelection)
+            .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $vm.dragDetectorTargeting) { providers in
+                handleDrop(providers: providers)
+            }
         }
         // Bind Quick Look to shelf selection
         .onChange(of: selection.selectedIDs) {
@@ -103,9 +114,7 @@ struct ShelfView: View {
                 }
                 .padding(-spacing)
                 .scrollIndicators(.never)
-                .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $vm.dragDetectorTargeting) { providers in
-                    handleDrop(providers: providers)
-                }
+
             }
         }
         .onAppear {

@@ -320,34 +320,7 @@ final class ShelfItemViewModel: ObservableObject {
         menu.addItem(NSMenuItem.separator())
         addMenuItem(title: "Share…")
         
-        // Add image processing options for image files grouped under "Image Actions"
-        let imageURLs = selectedFileURLs.filter { ImageProcessingService.shared.isImageFile($0) }
-        if !imageURLs.isEmpty {
-            menu.addItem(NSMenuItem.separator())
 
-            let imageActions = NSMenuItem(title: "Image Actions", action: nil, keyEquivalent: "")
-            let imageSubmenu = NSMenu()
-
-            // Remove Background - only for single images
-            if imageURLs.count == 1 {
-                let removeBg = NSMenuItem(title: "Remove Background", action: nil, keyEquivalent: "")
-                imageSubmenu.addItem(removeBg)
-            }
-
-            // Convert Image - only for single images
-            if imageURLs.count == 1 {
-                let convertItem = NSMenuItem(title: "Convert Image…", action: nil, keyEquivalent: "")
-                imageSubmenu.addItem(convertItem)
-            }
-
-            // Create PDF - for one or more images
-            let createPDF = NSMenuItem(title: "Create PDF", action: nil, keyEquivalent: "")
-            imageSubmenu.addItem(createPDF)
-
-            imageActions.submenu = imageSubmenu
-            menu.addItem(imageActions)
-            menu.addItem(NSMenuItem.separator())
-        }
 
         // Add compression option for files/folders (single or multiple)
         if !selectedFileURLs.isEmpty {

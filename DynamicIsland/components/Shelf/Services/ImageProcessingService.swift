@@ -57,7 +57,15 @@ final class ImageProcessingService {
     // MARK: - Remove Background
     
     /// Removes the background from an image using Vision framework
+    @available(macOS 14.0, *)
     func removeBackground(from url: URL) async throws -> URL? {
+        await ConversionManager.shared.startConversion()
+        defer {
+            Task { @MainActor in
+                ConversionManager.shared.finishConversion()
+            }
+        }
+        
         guard let inputImage = NSImage(contentsOf: url) else {
             throw ImageProcessingError.invalidImage
         }
@@ -123,82 +131,80 @@ final class ImageProcessingService {
     
     // MARK: - Convert Image
     
-    /// Converts an image with specified options
+    /// Converts an image with specified options using ImageIO for performance
     func convertImage(from url: URL, options: ImageConversionOptions) async throws -> URL? {
-        guard var inputImage = NSImage(contentsOf: url) else {
-            throw ImageProcessingError.invalidImage
-        }
-        
-        // Scale image if needed
-        if let maxDim = options.maxDimension {
-            inputImage = scaleImage(inputImage, maxDimension: maxDim)
-        }
-        
-        // Get image data based on format
-        let imageData: Data?
-        
-        if options.removeMetadata {
-            // Create new image without metadata
-            guard let cgImage = inputImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-                throw ImageProcessingError.invalidImage
+        await ConversionManager.shared.startConversion()
+        defer {
+            Task { @MainActor in
+                ConversionManager.shared.finishConversion()
             }
-            
-            let newImage = NSImage(cgImage: cgImage, size: inputImage.size)
-            imageData = try convertToFormat(newImage, format: options.format, quality: options.compressionQuality)
-        } else {
-            imageData = try convertToFormat(inputImage, format: options.format, quality: options.compressionQuality)
-        }
-        
-        guard let data = imageData else {
-            throw ImageProcessingError.conversionFailed
         }
         
         // Create temporary file
         let originalName = url.deletingPathExtension().lastPathComponent
         let newName = "\(originalName)_converted.\(options.format.fileExtension)"
         
-        guard let tempURL = await TemporaryFileStorageService.shared.createTempFile(
-            for: .data(data, suggestedName: newName)
-        ) else {
-            throw ImageProcessingError.saveFailed
+        let tempDir = FileManager.default.temporaryDirectory
+        let tempURL = tempDir.appendingPathComponent(UUID().uuidString).appendingPathExtension(options.format.fileExtension)
+        
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            throw ImageProcessingError.invalidImage
         }
         
-        return tempURL
-    }
-    
-    private func convertToFormat(_ image: NSImage, format: ImageConversionOptions.ImageFormat, quality: Double) throws -> Data? {
-        guard let tiffData = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData) else {
-            return nil
+        guard let destination = CGImageDestinationCreateWithURL(tempURL as CFURL, options.format.utType.identifier as CFString, 1, nil) else {
+            throw ImageProcessingError.conversionFailed
         }
         
-        switch format {
-        case .png:
-            return bitmap.representation(using: .png, properties: [:])
-        case .jpeg:
-            let properties: [NSBitmapImageRep.PropertyKey: Any] = [
-                .compressionFactor: quality
+        let properties: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: options.compressionQuality
+        ]
+        
+        // If we need to scale, we use a thumbnail approach with CGImageSource
+        if let maxDim = options.maxDimension {
+            let thumbnailOptions: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxDim,
+                kCGImageSourceCreateThumbnailWithTransform: true
             ]
-            return bitmap.representation(using: .jpeg, properties: properties)
-        case .tiff:
-            let properties: [NSBitmapImageRep.PropertyKey: Any] = [
-                .compressionMethod: NSNumber(value: NSBitmapImageRep.TIFFCompression.lzw.rawValue)
-            ]
-            return bitmap.representation(using: .tiff, properties: properties)
-        case .bmp:
-            return bitmap.representation(using: .bmp, properties: [:])
-        case .heic:
-            // HEIC requires using CIContext
-            guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-                return nil
+            
+            guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) else {
+                throw ImageProcessingError.conversionFailed
             }
-            let ciImage = CIImage(cgImage: cgImage)
-            let context = CIContext()
-            let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
-            let options: [CIImageRepresentationOption: Any] = [
-                CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): quality
-            ]
-            return try? context.heifRepresentation(of: ciImage, format: .RGBA8, colorSpace: colorSpace, options: options)
+            
+            CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+        } else {
+            // Direct copy/transcode
+            if options.removeMetadata {
+                // To remove metadata, we must decode to a clean CGImage and re-encode
+                // This strips all source metadata that would otherwise be copied
+                if let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+                    CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+                } else {
+                     // Fallback if decoding fails (unlikely)
+                     CGImageDestinationAddImageFromSource(destination, source, 0, properties as CFDictionary)
+                }
+            } else {
+                // Preserve metadata by copying from source
+                CGImageDestinationAddImageFromSource(destination, source, 0, properties as CFDictionary)
+            }
+        }
+        
+        guard CGImageDestinationFinalize(destination) else {
+            throw ImageProcessingError.conversionFailed
+        }
+        
+        // Move to managed storage
+        if let data = try? Data(contentsOf: tempURL) {
+            try? FileManager.default.removeItem(at: tempURL)
+            
+            guard let finalTempURL = await TemporaryFileStorageService.shared.createTempFile(
+                for: .data(data, suggestedName: newName)
+            ) else {
+                throw ImageProcessingError.saveFailed
+            }
+            return finalTempURL
+        } else {
+            throw ImageProcessingError.saveFailed
         }
     }
     
@@ -242,6 +248,13 @@ final class ImageProcessingService {
     
     /// Creates a PDF from multiple image URLs
     func createPDF(from imageURLs: [URL], outputName: String? = nil) async throws -> URL? {
+        await ConversionManager.shared.startConversion()
+        defer {
+            Task { @MainActor in
+                ConversionManager.shared.finishConversion()
+            }
+        }
+        
         guard !imageURLs.isEmpty else {
             throw ImageProcessingError.noImagesProvided
         }
