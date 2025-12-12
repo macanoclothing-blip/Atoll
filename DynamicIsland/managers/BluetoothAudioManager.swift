@@ -92,9 +92,11 @@ class BluetoothAudioManager: ObservableObject {
     private func startPollingForChanges() {
         print("🎧 [BluetoothAudioManager] Starting polling timer (3s interval)...")
         
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+        // Use RunLoop to ensure timer works even when app is in background
+        pollingTimer = Timer(timeInterval: 3.0, repeats: true) { [weak self] _ in
             self?.checkForDeviceChanges()
         }
+        RunLoop.current.add(pollingTimer!, forMode: .common)
     }
     
     /// Checks for device connection/disconnection changes
@@ -1455,6 +1457,14 @@ class BluetoothAudioManager: ObservableObject {
     @MainActor
     func refreshConnectedDeviceBatteries() {
         refreshBatteryLevelsForConnectedDevices()
+    }
+    
+    /// Force a check for connected Bluetooth audio devices
+    /// This is useful when the app comes to foreground or when volume changes
+    func checkConnectedDevices() {
+        DispatchQueue.main.async { [weak self] in
+            self?.checkForDeviceChanges()
+        }
     }
 }
 

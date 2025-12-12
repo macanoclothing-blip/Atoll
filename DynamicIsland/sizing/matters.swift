@@ -45,6 +45,17 @@ var minimalisticOpenNotchSize: CGSize {
     if DynamicIslandViewCoordinator.shared.timerLiveActivityEnabled && TimerManager.shared.isExternalTimerActive {
         size.height += minimalisticTimerCountdownBlockHeight
     }
+    
+    // Add HUD section height when sneak peek is active (volume, brightness, backlight)
+    let coordinator = DynamicIslandViewCoordinator.shared
+    if coordinator.sneakPeek.show && 
+       (coordinator.sneakPeek.type == .volume || 
+        coordinator.sneakPeek.type == .brightness || 
+        coordinator.sneakPeek.type == .backlight) {
+        let hudTopPadding: CGFloat = 8
+        let hudEstimatedHeight: CGFloat = 24 // Icon + progress bar + spacing
+        size.height += hudTopPadding + hudEstimatedHeight
+    }
 
     return size
 }

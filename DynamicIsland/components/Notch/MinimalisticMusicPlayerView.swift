@@ -79,6 +79,14 @@ struct MinimalisticMusicPlayerView: View {
                     .padding(.top, 10)
             }
 
+            // HUD section (volume, brightness, backlight) when sneak peek is active
+            // Positioned after lyrics if they are enabled
+            if shouldShowHUD {
+                hudSection
+                    .padding(.top, enableLyrics ? 18 : 8)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             timerCountdownSection
 
             reminderList
@@ -190,6 +198,7 @@ struct MinimalisticMusicPlayerView: View {
         var signature = reminderEntries.count * 10
         if enableLyrics { signature += 1 }
         if shouldShowTimerCountdown { signature += 100 }
+        if shouldShowHUD { signature += 1000 }
         return signature
     }
 
@@ -207,6 +216,13 @@ struct MinimalisticMusicPlayerView: View {
             let lyricsTopPadding: CGFloat = 10
             let lyricsEstimatedHeight: CGFloat = 34
             height += lyricsTopPadding + lyricsEstimatedHeight
+        }
+
+        // Add HUD section height if showing (positioned after lyrics)
+        if shouldShowHUD {
+            let hudTopPadding: CGFloat = enableLyrics ? 18 : 8
+            let hudEstimatedHeight: CGFloat = 24 // Icon + progress bar + spacing
+            height += hudTopPadding + hudEstimatedHeight
         }
 
         if shouldShowTimerCountdown {
@@ -843,6 +859,132 @@ private struct MinimalisticReminderDetailsView: View {
         case .off: return "repeat"
         case .all: return "repeat"
         case .one: return "repeat.1"
+        }
+    }
+    
+    // MARK: - HUD Section
+    
+    private var shouldShowHUD: Bool {
+        coordinator.sneakPeek.show && 
+        (coordinator.sneakPeek.type == .volume || 
+         coordinator.sneakPeek.type == .brightness || 
+         coordinator.sneakPeek.type == .backlight)
+    }
+    
+    private var hudSection: some View {
+        HStack(spacing: 10) {
+            // Icon
+            Group {
+                switch coordinator.sneakPeek.type {
+                case .volume:
+                    if coordinator.sneakPeek.icon.isEmpty {
+                        let baseIcon = BluetoothAudioManager.shared.isBluetoothAudioConnected ? "headphones" : speakerIcon(for: coordinator.sneakPeek.value)
+                        Image(systemName: baseIcon)
+                            .contentTransition(.interpolate)
+                            .symbolVariant(coordinator.sneakPeek.value > 0 ? .none : .slash)
+                    } else {
+                        Image(systemName: coordinator.sneakPeek.icon)
+                            .contentTransition(.interpolate)
+                            .opacity(coordinator.sneakPeek.value.isZero ? 0.6 : 1)
+                            .scaleEffect(coordinator.sneakPeek.value.isZero ? 0.85 : 1)
+                    }
+                case .brightness:
+                    Image(systemName: brightnessIcon(for: coordinator.sneakPeek.value))
+                        .contentTransition(.interpolate)
+                case .backlight:
+                    Image(systemName: backlightIcon(for: coordinator.sneakPeek.value))
+                        .contentTransition(.interpolate)
+                default:
+                    EmptyView()
+                }
+            }
+            .foregroundStyle(.white)
+            .symbolVariant(.fill)
+            .frame(width: 18, height: 18)
+            
+            // Progress bar with label
+            HStack(spacing: 6) {
+                if coordinator.sneakPeek.type == .volume {
+                    if coordinator.sneakPeek.value.isZero {
+                        Text("muted")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.gray)
+                            .lineLimit(1)
+                            .contentTransition(.numericText())
+                    } else {
+                        DraggableProgressBar(value: Binding(
+                            get: { coordinator.sneakPeek.value },
+                            set: { newValue in
+                                coordinator.sneakPeek.value = newValue
+                                // Update system volume/brightness based on type
+                                updateSystemValue(newValue)
+                            }
+                        ), colorMode: .volume)
+                        PercentageLabel(value: coordinator.sneakPeek.value, isVisible: Defaults[.showProgressPercentages])
+                    }
+                } else {
+                    DraggableProgressBar(value: Binding(
+                        get: { coordinator.sneakPeek.value },
+                        set: { newValue in
+                            coordinator.sneakPeek.value = newValue
+                            updateSystemValue(newValue)
+                        }
+                    ))
+                    PercentageLabel(value: coordinator.sneakPeek.value, isVisible: Defaults[.showProgressPercentages])
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.smooth(duration: 0.2), value: coordinator.sneakPeek.value.isZero)
+    }
+    
+    private func speakerIcon(for value: CGFloat) -> String {
+        switch value {
+        case 0:
+            return "speaker"
+        case 0...0.3:
+            return "speaker.wave.1"
+        case 0.3...0.8:
+            return "speaker.wave.2"
+        case 0.8...1:
+            return "speaker.wave.3"
+        default:
+            return "speaker.wave.2"
+        }
+    }
+    
+    private func brightnessIcon(for value: CGFloat) -> String {
+        switch value {
+        case 0...0.6:
+            return "sun.min"
+        case 0.6...1:
+            return "sun.max"
+        default:
+            return "sun.min"
+        }
+    }
+    
+    private func backlightIcon(for value: CGFloat) -> String {
+        value >= 0.5 ? "light.max" : "light.min"
+    }
+    
+    private func updateSystemValue(_ newValue: CGFloat) {
+        // Only update if the value actually changed to avoid feedback loops
+        let clampedValue = max(0, min(1, newValue))
+        let currentValue = coordinator.sneakPeek.value
+        guard abs(clampedValue - currentValue) > 0.001 else { return }
+        
+        switch coordinator.sneakPeek.type {
+        case .volume:
+            SystemVolumeController.shared.setVolume(Float(clampedValue))
+        case .brightness:
+            SystemBrightnessController.shared.setBrightness(Float(clampedValue))
+        case .backlight:
+            SystemKeyboardBacklightController.shared.setLevel(Float(clampedValue))
+        default:
+            break
         }
     }
 }

@@ -26,11 +26,15 @@ enum SneakContentType {
     case lockScreen
 }
 
-struct sneakPeek {
+struct sneakPeek: Equatable {
     var show: Bool = false
     var type: SneakContentType = .music
     var value: CGFloat = 0
     var icon: String = ""
+    
+    static func == (lhs: sneakPeek, rhs: sneakPeek) -> Bool {
+        lhs.show == rhs.show && lhs.type == rhs.type && lhs.value == rhs.value && lhs.icon == rhs.icon
+    }
 }
 
 enum BrowserType {
@@ -161,7 +165,19 @@ class DynamicIslandViewCoordinator: ObservableObject {
         case .reminder:
             resolvedDuration = Defaults[.reminderSneakPeekDuration]
         default:
-            resolvedDuration = duration
+            // Increase duration for HUD types (volume, brightness, backlight) when minimalistic UI is open
+            if status && (type == .volume || type == .brightness || type == .backlight) {
+                // Check if minimalistic UI is enabled and notch is open
+                if Defaults[.enableMinimalisticUI] {
+                    // Check if notch is open by checking if there's a view model with open state
+                    // We'll use a longer duration (4 seconds instead of 1.5) for minimalistic mode
+                    resolvedDuration = 1.5
+                } else {
+                    resolvedDuration = duration
+                }
+            } else {
+                resolvedDuration = duration
+            }
         }
         sneakPeekDuration = resolvedDuration
         if type != .music && type != .timer && type != .reminder {

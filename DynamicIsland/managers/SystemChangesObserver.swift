@@ -29,11 +29,15 @@ final class SystemChangesObserver: MediaKeyInterceptorDelegate {
 
         volumeController.onVolumeChange = { [weak self] volume, muted in
             guard let self, self.volumeEnabled else { return }
+            // Check for Bluetooth audio devices when volume changes
+            BluetoothAudioManager.shared.checkConnectedDevices()
             let value = muted ? 0 : volume
             self.sendVolumeNotification(value: value)
         }
         volumeController.onRouteChange = { [weak self] in
             guard let self, self.volumeEnabled else { return }
+            // Check for Bluetooth audio devices when audio route changes
+            BluetoothAudioManager.shared.checkConnectedDevices()
             self.sendVolumeNotification(value: self.volumeController.isMuted ? 0 : self.volumeController.currentVolume)
         }
         volumeController.start()

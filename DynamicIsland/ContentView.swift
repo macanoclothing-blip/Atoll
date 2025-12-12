@@ -800,7 +800,8 @@ struct ContentView: View {
                         self.isHovering = false
                     }
 
-                    if self.vm.notchState == .open && !self.hasAnyActivePopovers() {
+                    // Don't close notch if HUD is showing or if still hovering
+                    if self.vm.notchState == .open && !self.hasAnyActivePopovers() && !self.isHovering {
                         self.vm.close()
                     }
                 }
@@ -816,7 +817,9 @@ struct ContentView: View {
          vm.isStatsPopoverActive ||
          vm.isTimerPopoverActive ||
          vm.isMediaOutputPopoverActive ||
-         vm.isReminderPopoverActive
+         vm.isReminderPopoverActive ||
+         // Don't close notch when volume/brightness/backlight HUD is showing
+         (coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .volume || coordinator.sneakPeek.type == .brightness || coordinator.sneakPeek.type == .backlight))
     }
     
     // Helper to prevent rapid haptic feedback

@@ -157,6 +157,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.adjustWindowPosition(changeAlpha: true)
         }
     }
+    
+    @objc func applicationDidBecomeActive(_: Notification) {
+        // Refresh Bluetooth device status when app becomes active
+        BluetoothAudioManager.shared.checkConnectedDevices()
+    }
 
     private func hideWindowsForLock() {
         guard !windowsHiddenForLock else { return }
@@ -364,6 +369,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Setup Privacy Indicator Manager (camera and microphone monitoring)
         PrivacyIndicatorManager.shared.startMonitoring()
+        
+        // Observe app becoming active to refresh Bluetooth device status
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidBecomeActive),
+            name: NSApplication.didBecomeActiveNotification,
+            object: nil
+        )
         
         // Observe tab changes - use debounced updates
         coordinator.$currentView.sink { [weak self] newView in
