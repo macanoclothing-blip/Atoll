@@ -157,7 +157,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.adjustWindowPosition(changeAlpha: true)
         }
     }
-    
+
     @objc func applicationDidBecomeActive(_: Notification) {
         // Refresh Bluetooth device status when app becomes active
         BluetoothAudioManager.shared.checkConnectedDevices()

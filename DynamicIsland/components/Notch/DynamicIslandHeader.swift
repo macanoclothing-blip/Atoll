@@ -227,6 +227,26 @@ struct DynamicIslandHeader: View {
             .blur(radius: vm.notchState == .closed ? 20 : 0)
             .animation(.smooth.delay(0.1), value: vm.notchState)
             .zIndex(2)
+            .overlay(
+                // HUD display for volume/brightness/backlight - appears on top of all elements
+                Group {
+                    if vm.notchState == .open && !Defaults[.enableMinimalisticUI] && shouldShowHUD {
+                        GeometryReader { geometry in
+                            HStack {
+                                Spacer()
+                                headerHUDView
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                    // Extend to cover clipboard button - calculate based on visible buttons
+                                    .frame(width: calculateHUDWidth(), alignment: .trailing)
+                                    .offset(x: calculateHUDOffset(), y: 2)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    }
+                },
+                alignment: .trailing
+            )
+            .zIndex(shouldShowHUD ? 10 : 2)
         }
         .foregroundColor(.gray)
         .environmentObject(vm)
@@ -269,6 +289,188 @@ private extension DynamicIslandHeader {
             && Defaults[.showClipboardIcon]
             && Defaults[.enableColorPickerFeature]
             && Defaults[.enableTimerFeature]
+    }
+    
+    var shouldShowHUD: Bool {
+        coordinator.sneakPeek.show && 
+        (coordinator.sneakPeek.type == .volume || 
+         coordinator.sneakPeek.type == .brightness || 
+         coordinator.sneakPeek.type == .backlight)
+    }
+    
+    @ViewBuilder
+    var headerHUDView: some View {
+        HStack(spacing: 8) {
+            // Icon
+            Group {
+                switch coordinator.sneakPeek.type {
+                case .volume:
+                    if coordinator.sneakPeek.icon.isEmpty {
+                        let baseIcon = BluetoothAudioManager.shared.isBluetoothAudioConnected ? "headphones" : speakerIcon(for: coordinator.sneakPeek.value)
+                        Image(systemName: baseIcon)
+                            .contentTransition(.interpolate)
+                            .symbolVariant(coordinator.sneakPeek.value > 0 ? .none : .slash)
+                    } else {
+                        Image(systemName: coordinator.sneakPeek.icon)
+                            .contentTransition(.interpolate)
+                            .opacity(coordinator.sneakPeek.value.isZero ? 0.6 : 1)
+                            .scaleEffect(coordinator.sneakPeek.value.isZero ? 0.85 : 1)
+                    }
+                case .brightness:
+                    Image(systemName: brightnessIcon(for: coordinator.sneakPeek.value))
+                        .contentTransition(.interpolate)
+                case .backlight:
+                    Image(systemName: backlightIcon(for: coordinator.sneakPeek.value))
+                        .contentTransition(.interpolate)
+                default:
+                    EmptyView()
+                }
+            }
+            .foregroundStyle(.white)
+            .symbolVariant(.fill)
+            .frame(width: 16, height: 16)
+            
+            // Progress bar with percentage
+            HStack(spacing: 6) {
+                if coordinator.sneakPeek.type == .volume {
+                    if coordinator.sneakPeek.value.isZero {
+                        // Show muted text but keep black background
+                        Text("muted")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.white.opacity(0.7))
+                            .lineLimit(1)
+                            .contentTransition(.numericText())
+                            .frame(width: 60, alignment: .leading)
+                        
+                        if Defaults[.showProgressPercentages] {
+                            Text("0%")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.white.opacity(0.7))
+                                .lineLimit(1)
+                                .frame(width: 32, alignment: .trailing)
+                        }
+                    } else {
+                        DraggableProgressBar(value: Binding(
+                            get: { coordinator.sneakPeek.value },
+                            set: { newValue in
+                                coordinator.sneakPeek.value = newValue
+                                updateSystemValue(newValue)
+                            }
+                        ), colorMode: .volume)
+                        .frame(width: 60, height: 4)
+                        
+                        if Defaults[.showProgressPercentages] {
+                            Text("\(Int(coordinator.sneakPeek.value * 100))%")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .frame(width: 32, alignment: .trailing)
+                        }
+                    }
+                } else {
+                    DraggableProgressBar(value: Binding(
+                        get: { coordinator.sneakPeek.value },
+                        set: { newValue in
+                            coordinator.sneakPeek.value = newValue
+                            updateSystemValue(newValue)
+                        }
+                    ))
+                    .frame(width: 60, height: 4)
+                    
+                    if Defaults[.showProgressPercentages] {
+                        Text("\(Int(coordinator.sneakPeek.value * 100))%")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .frame(width: 32, alignment: .trailing)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(.black)
+        )
+        .animation(.smooth(duration: 0.2), value: coordinator.sneakPeek.value.isZero)
+    }
+    
+    private func calculateHUDWidth() -> CGFloat {
+        // Base width for HUD content + clipboard button
+        var width: CGFloat = 140
+        
+        // Add width to cover clipboard button (30px button + 4px spacing)
+        if Defaults[.enableClipboardManager] && Defaults[.showClipboardIcon] {
+            width += 34
+        }
+        
+        return width
+    }
+    
+    private func calculateHUDOffset() -> CGFloat {
+        // Simple offset to cover clipboard button without going too far left
+        // Just enough to cover the clipboard button (30px + 4px spacing = 34px)
+        if Defaults[.enableClipboardManager] && Defaults[.showClipboardIcon] {
+            return -34
+        }
+        return 0
+    }
+    
+    private func speakerIcon(for value: CGFloat) -> String {
+        switch value {
+        case 0:
+            return "speaker"
+        case 0...0.3:
+            return "speaker.wave.1"
+        case 0.3...0.8:
+            return "speaker.wave.2"
+        case 0.8...1:
+            return "speaker.wave.3"
+        default:
+            return "speaker.wave.2"
+        }
+    }
+    
+    private func brightnessIcon(for value: CGFloat) -> String {
+        switch value {
+        case 0...0.6:
+            return "sun.min"
+        case 0.6...1:
+            return "sun.max"
+        default:
+            return "sun.max"
+        }
+    }
+    
+    private func backlightIcon(for value: CGFloat) -> String {
+        switch value {
+        case 0:
+            return "keyboard"
+        case 0...0.5:
+            return "keyboard"
+        case 0.5...1:
+            return "keyboard"
+        default:
+            return "keyboard"
+        }
+    }
+    
+    private func updateSystemValue(_ value: CGFloat) {
+        switch coordinator.sneakPeek.type {
+        case .volume:
+            SystemVolumeController.shared.setVolume(Float(value))
+        case .brightness:
+            SystemBrightnessController.shared.setBrightness(Float(value))
+        case .backlight:
+            SystemKeyboardBacklightController.shared.setLevel(Float(value))
+        default:
+            break
+        }
     }
 }
 
