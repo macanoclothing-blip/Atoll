@@ -6,7 +6,7 @@ struct MusicSlotConfigurationView: View {
     @Default(.musicControlSlots) private var musicControlSlots
     @Default(.showMediaOutputControl) private var showMediaOutputControl
     @ObservedObject private var musicManager = MusicManager.shared
-    @State private var selectedSlotIndex: Int? = nil
+    @State private var hoveredSlotIndex: Int? = nil
     @State private var targetedSlotIndex: Int? = nil
     @State private var trashDropIsTargeted: Bool = false
 
@@ -111,28 +111,28 @@ struct MusicSlotConfigurationView: View {
 
     private func slotPreview(for index: Int) -> some View {
         let slot = slotValue(at: index)
-        let isSelected = selectedSlotIndex == index
+        let isHovered = hoveredSlotIndex == index
         let isDropTarget = targetedSlotIndex == index
 
         return ZStack {
             RoundedRectangle(cornerRadius: 10)
-                .fill(slotBackgroundColor(isSelected: isSelected, isTargeted: isDropTarget))
+                .fill(slotBackgroundColor(isHovered: isHovered, isTargeted: isDropTarget))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(slotBorderColor(isSelected: isSelected, isTargeted: isDropTarget), lineWidth: borderWidth(isSelected: isSelected, isTargeted: isDropTarget))
+                        .stroke(slotBorderColor(isHovered: isHovered, isTargeted: isDropTarget), lineWidth: borderWidth(isHovered: isHovered, isTargeted: isDropTarget))
                 )
 
             slotContent(for: slot)
         }
         .frame(width: 48, height: 48)
         .contentShape(RoundedRectangle(cornerRadius: 10))
-        .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                selectedSlotIndex = index
+        .onHover { isInside in
+            withAnimation(.easeInOut(duration: 0.12)) {
+                hoveredSlotIndex = isInside ? index : nil
             }
         }
         .onDrag {
-            selectedSlotIndex = index
+            hoveredSlotIndex = index
             return NSItemProvider(object: NSString(string: "slot:\(index)"))
         }
         .onDrop(of: [UTType.plainText.identifier], isTargeted: dropTargetBinding(for: index)) { providers in
@@ -284,27 +284,27 @@ struct MusicSlotConfigurationView: View {
         musicControlSlots = filtered
     }
 
-    private func slotBackgroundColor(isSelected: Bool, isTargeted: Bool) -> Color {
+    private func slotBackgroundColor(isHovered: Bool, isTargeted: Bool) -> Color {
         if isTargeted {
             return Color.accentColor.opacity(0.25)
-        } else if isSelected {
+        } else if isHovered {
             return Color.accentColor.opacity(0.15)
         }
         return Color(nsColor: .controlBackgroundColor)
     }
 
-    private func slotBorderColor(isSelected: Bool, isTargeted: Bool) -> Color {
+    private func slotBorderColor(isHovered: Bool, isTargeted: Bool) -> Color {
         if isTargeted {
             return Color.accentColor
-        } else if isSelected {
+        } else if isHovered {
             return Color.accentColor.opacity(0.8)
         }
         return .clear
     }
 
-    private func borderWidth(isSelected: Bool, isTargeted: Bool) -> CGFloat {
+    private func borderWidth(isHovered: Bool, isTargeted: Bool) -> CGFloat {
         if isTargeted { return 2 }
-        if isSelected { return 1.5 }
+        if isHovered { return 1.5 }
         return 0
     }
 
