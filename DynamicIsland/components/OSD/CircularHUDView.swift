@@ -28,36 +28,39 @@ struct CircularHUDView: View {
                         .stroke(.white.opacity(0.1), lineWidth: 1)
                 }
             
-            // Progress ring background
-            Circle()
-                .stroke(Color.white.opacity(0.2), lineWidth: strokeWidth)
-                .padding(strokeWidth / 2)
+            // Native Gauge Ring
+            Gauge(value: value) {
+                Text("")
+            }
+            .gaugeStyle(.accessoryCircular)
+            .labelsHidden()
+            .tint(strokeStyle)
+            .scaleEffect(size / 60)
+            .animation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0), value: value)
             
-            // Progress ring
-            Circle()
-                .trim(from: 0, to: value)
-                .stroke(
-                    strokeStyle,
-                    style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .padding(strokeWidth / 2)
-                .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.8, blendDuration: 0), value: value)
+            // Central Icon
+            Image(systemName: symbolName)
+                .font(.system(size: size * 0.32, weight: .bold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.white)
+                .contentTransition(.symbolEffect(.replace)) // Smooth icon switching
+                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: symbolName)
+
             
-            // Content
-            VStack(spacing: 2) {
-                Image(systemName: symbolName)
-                    .font(.system(size: size * 0.35, weight: .semibold))
-                    .foregroundStyle(useAccentColor ? (value > 0.9 ? .white : .primary) : .white)
-                    .symbolRenderingMode(.hierarchical)
-                
-                if showValue {
+            // Bottom Value Label
+            if showValue {
+                VStack {
+                    Spacer()
                     Text("\(Int(value * 100))")
-                        .font(.system(size: size * 0.18, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.8))
+                        .font(.system(size: size * 0.15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
                         .contentTransition(.numericText())
+                        .padding(.bottom, size * 0.03) // Adjusted to align perfectly with the bottom gap
                 }
             }
+
+
+
         }
         .frame(width: size, height: size)
         .shadow(color: .black.opacity(0.2), radius: 15, x: 0, y: 5)
@@ -82,7 +85,7 @@ struct CircularHUDView: View {
             
             if deviceInfo.isAirPods {
                 // Use AirPods icon when AirPods are connected
-                if value < 0.01 { return "airpods" }
+                if value < 0.01 { return "headphones.slash" }
                 else { return "airpods" }
             } else if deviceInfo.isHeadphones {
                 // Use headphone icons when other headphones are connected
