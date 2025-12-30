@@ -961,6 +961,8 @@ struct ContentView: View {
             && (!musicManager.isPlayerIdle || musicManager.bundleIdentifier != nil)
             && !lockScreenManager.isLocked
             && !hasAnyActivePopovers()
+            && !vm.isHoveringCalendar
+            && !vm.isScrollGestureActive
     }
 
     private func handleMusicControlPlaybackChange(isPlaying: Bool) {
