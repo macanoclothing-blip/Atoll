@@ -33,6 +33,7 @@ public enum NotchViews {
     case colorPicker
     case notes
     case clipboard
+    case messages
 }
 
 enum NotesLayoutState: Equatable {

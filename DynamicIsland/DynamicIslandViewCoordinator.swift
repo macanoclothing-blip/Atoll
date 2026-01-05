@@ -23,7 +23,10 @@ enum SneakContentType {
     case doNotDisturb
     case bluetoothAudio
     case privacy
+    case message
+    case messageBanner
     case lockScreen
+    case browser
 }
 
 struct sneakPeek {
@@ -185,11 +188,12 @@ class DynamicIslandViewCoordinator: ObservableObject {
             resolvedDuration = duration
         }
         sneakPeekDuration = resolvedDuration
-        let bypassedTypes: [SneakContentType] = [.music, .timer, .reminder, .bluetoothAudio]
+        let bypassedTypes: [SneakContentType] = [.music, .timer, .reminder, .bluetoothAudio, .message]
         if !bypassedTypes.contains(type) && !Defaults[.enableSystemHUD] {
             return
         }
         DispatchQueue.main.async {
+            print("ViewCoordinator: Setting sneakPeek.show to \(status) (\(type))")
             withAnimation(.smooth) {
                 self.sneakPeek.show = status
                 self.sneakPeek.type = type
@@ -278,4 +282,7 @@ class DynamicIslandViewCoordinator: ObservableObject {
         // Toggle the published property to trigger UI updates
         shouldToggleClipboardPopover.toggle()
     }
+    
+    // MARK: - Expansion Trigger
+    @Published var shouldOpenNotch: Bool = false
 }

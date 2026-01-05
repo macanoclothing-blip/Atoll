@@ -128,6 +128,18 @@ struct InlineHUD: View {
                                 .symbolRenderingMode(.hierarchical)
                                 .contentTransition(.interpolate)
                                 .frame(width: 20, height: 15, alignment: .center)
+                        case .message:
+                            if let notification = NotificationManager.shared.activeNotification,
+                               let icon = notification.appIcon {
+                                Image(nsImage: icon)
+                                    .resizable()
+                                    .frame(width: 15, height: 15)
+                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                            } else {
+                                Image(systemName: "bubble.left.fill")
+                                    .symbolRenderingMode(.hierarchical)
+                                    .frame(width: 20, height: 15, alignment: .center)
+                            }
                         default:
                             EmptyView()
                     }
@@ -374,6 +386,8 @@ struct InlineHUD: View {
                 return "Mic"
             case .bluetoothAudio:
                 return BluetoothAudioManager.shared.lastConnectedDevice?.name ?? "Bluetooth"
+            case .message:
+                return "New Message"
             default:
                 return ""
         }

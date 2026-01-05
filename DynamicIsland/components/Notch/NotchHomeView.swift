@@ -378,6 +378,7 @@ struct NotchHomeView: View {
     @ObservedObject var webcamManager = WebcamManager.shared
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var coordinator = DynamicIslandViewCoordinator.shared
+    @ObservedObject var notificationManager = NotificationManager.shared
     let albumArtNamespace: Namespace.ID
     
     var body: some View {
@@ -399,12 +400,20 @@ struct NotchHomeView: View {
                 MusicPlayerView(albumArtNamespace: albumArtNamespace)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 
-                if Defaults[.showCalendar] {
-                    CalendarView()
-                        .onHover { isHovering in
-                            vm.isHoveringCalendar = isHovering
-                        }
-                        .environmentObject(vm)
+                VStack(spacing: 4) {
+                    if Defaults[.showCalendar] {
+                        CalendarView()
+                            .onHover { isHovering in
+                                vm.isHoveringCalendar = isHovering
+                            }
+                            .environmentObject(vm)
+                    }
+                    
+                    if !notificationManager.notifications.isEmpty {
+                        InPlayerNotificationBanner()
+                            .frame(maxWidth: 280)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
                 
                 if Defaults[.showMirror],

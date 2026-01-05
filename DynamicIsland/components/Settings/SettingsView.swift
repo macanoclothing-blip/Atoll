@@ -8,6 +8,7 @@ import AppKit
 import AVFoundation
 import Combine
 import Defaults
+import WebKit
 import EventKit
 import KeyboardShortcuts
 import LaunchAtLogin
@@ -36,6 +37,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     case shelf
     case shortcuts
     case notes
+    case messages
     case about
 
     var id: String { rawValue }
@@ -60,6 +62,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .shelf: return "Shelf"
         case .shortcuts: return "Shortcuts"
         case .notes: return "Notes"
+        case .messages: return "Messages"
         case .about: return "About"
         }
     }
@@ -84,6 +87,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .shelf: return "books.vertical"
         case .shortcuts: return "keyboard"
         case .notes: return "note.text"
+        case .messages: return "bubble.left.and.bubble.right"
         case .about: return "info.circle"
         }
     }
@@ -108,6 +112,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .shelf: return .brown
         case .shortcuts: return .orange
         case .notes: return Color(red: 0.979, green: 0.716, blue: 0.153, opacity: 1.000)
+        case .messages: return .blue
         case .about: return .secondary
         }
     }
@@ -398,6 +403,7 @@ struct SettingsView: View {
             .downloads,
             .shelf,
             .shortcuts,
+            .messages,
             .about
         ]
 
@@ -797,6 +803,10 @@ struct SettingsView: View {
         case .colorPicker:
             SettingsForm(tab: .colorPicker) {
                 ColorPickerSettings()
+            }
+        case .messages:
+            SettingsForm(tab: .messages) {
+                MessagesSettings()
             }
         case .downloads:
             SettingsForm(tab: .downloads) {
@@ -5217,19 +5227,29 @@ struct CustomOSDSettings: View {
 }
 
 struct SettingsPermissionCallout: View {
+    let title: String
     let message: String
     let requestAction: () -> Void
     let openSettingsAction: () -> Void
 
+    init(title: String = "Accessibility permission required", message: String, requestAction: @escaping () -> Void, openSettingsAction: @escaping () -> Void) {
+        self.title = title
+        self.message = message
+        self.requestAction = requestAction
+        self.openSettingsAction = openSettingsAction
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Accessibility permission required", systemImage: "exclamationmark.triangle.fill")
+        VStack(alignment: .leading, spacing: 12) {
+            Label(title, systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.orange)
 
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 8) {
                 Button("Request Access") {
@@ -5241,12 +5261,17 @@ struct SettingsPermissionCallout: View {
                     openSettingsAction()
                 }
                 .buttonStyle(.bordered)
+                
+                Button("Reveal App in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+                }
+                .buttonStyle(.bordered)
             }
             .controlSize(.small)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.secondary.opacity(0.08))
+        .background(Color.secondary.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
@@ -5284,4 +5309,194 @@ struct NotesSettingsView: View {
         }
         .navigationTitle("Notes")
     }
+}
+
+struct MessagesSettings: View {
+    @Default(.enableMessageNotifications) var enableMessageNotifications
+    @Default(.showProfilePictures) var showProfilePictures
+    @Default(.enableQuickReply) var enableQuickReply
+    @Default(.messageNotificationStyle) var messageNotificationStyle
+    @Default(.autoExpandNotifications) var autoExpandNotifications
+    @ObservedObject var notificationManager = NotificationManager.shared
+    @State private var showingAlert = false
+    @State private var showingWhatsAppLink = false
+    @State private var showingDiscordLink = false
+    @State private var showingTelegramLink = false
+    @StateObject private var waManager = WhatsAppWebManager.shared
+    @StateObject private var discordManager = DiscordWebManager.shared
+    @StateObject private var telegramManager = TelegramWebManager.shared
+
+    private func highlightID(_ title: String) -> String {
+        SettingsTab.messages.highlightID(for: title)
+    }
+
+    var body: some View {
+        Form {
+            if enableMessageNotifications && !notificationManager.hasAccess {
+                Section {
+                    SettingsPermissionCallout(
+                        title: "Full Disk Access required",
+                        message: "Atoll needs Full Disk Access to read the system notification database. If Atoll does not appear in the list, use 'Reveal App in Finder' and drag it into the settings window.",
+                        requestAction: {
+                            showingAlert = true
+                        },
+                        openSettingsAction: {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    )
+                } header: {
+                    Text("Permissions")
+                }
+            }
+
+            Section {
+                Defaults.Toggle("Enable Message Notifications", key: .enableMessageNotifications)
+                    .settingsHighlight(id: highlightID("Enable Message Notifications"))
+                
+                if enableMessageNotifications {
+                    Defaults.Toggle("Show Profile Pictures", key: .showProfilePictures)
+                        .settingsHighlight(id: highlightID("Show Profile Pictures"))
+                    
+                    Defaults.Toggle("Enable Quick Reply", key: .enableQuickReply)
+                        .settingsHighlight(id: highlightID("Enable Quick Reply"))
+                    
+                }
+            } header: {
+                Text("General")
+            } footer: {
+                Text("Intercept notifications from WhatsApp, Telegram, and Messages to see them in the Dynamic Island.")
+            }
+
+            Section {
+                // WhatsApp
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("WhatsApp")
+                            .font(.headline)
+                        StatusIndicator(isConnected: waManager.isAuthenticated)
+                    }
+                    Spacer()
+                    Button(waManager.isAuthenticated ? "Manage" : "Connect") {
+                        showingWhatsAppLink = true
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.vertical, 4)
+                
+                Divider()
+                
+                // Discord
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Discord")
+                            .font(.headline)
+                        StatusIndicator(isConnected: discordManager.isAuthenticated)
+                    }
+                    Spacer()
+                    Button(discordManager.isAuthenticated ? "Reconnect" : "Connect") {
+                        showingDiscordLink = true
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.vertical, 4)
+                
+                Divider()
+                
+                // Telegram
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Telegram")
+                            .font(.headline)
+                        StatusIndicator(isConnected: telegramManager.isAuthenticated)
+                    }
+                    Spacer()
+                    Button(telegramManager.isAuthenticated ? "Reconnect" : "Connect") {
+                        showingTelegramLink = true
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.vertical, 4)
+                
+            } header: {
+                Text("Linked Accounts")
+            } footer: {
+                Text("Connect your web accounts to enable background replies. You only need to log in once.")
+            }
+        }
+        .sheet(isPresented: $showingWhatsAppLink) {
+            WhatsAppLinkView()
+        }
+        .sheet(isPresented: $showingDiscordLink) {
+            AuthWebView(title: "Log in to Discord", url: URL(string: "https://discord.com/app")!, webView: discordManager.getWebView())
+        }
+        .sheet(isPresented: $showingTelegramLink) {
+            AuthWebView(title: "Log in to Telegram", url: URL(string: "https://web.telegram.org/k/")!, webView: telegramManager.getWebView())
+        }
+        .navigationTitle("Messages")
+        .alert("\"Atoll\" vorrebbe accedere ai dati delle notifiche di sistema.", isPresented: $showingAlert) {
+            Button("Annulla", role: .cancel) { }
+            Button("Apri Impostazioni di Sistema") {
+                // Try to access the file to trigger system awareness
+                _ = try? Data(contentsOf: URL(fileURLWithPath: "/Users/\(NSUserName())/Library/Group Containers/group.com.apple.usernoted/db2/db"), options: .mappedIfSafe)
+                
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+        } message: {
+            Text("Consenti l'accesso a questa applicazione tramite le impostazioni \"Privacy e sicurezza\" in Impostazioni di Sistema per poter visualizzare i messaggi nella Dynamic Island.")
+        }
+    }
+}
+
+private struct StatusIndicator: View {
+    let isConnected: Bool
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(isConnected ? Color.green : Color.orange)
+                .frame(width: 8, height: 8)
+            
+            Text(isConnected ? "Connected" : "Not Linked")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct AuthWebView: View {
+    let title: String
+    let url: URL
+    let webView: WKWebView
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                Button("Done") { dismiss() }
+                    .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .background(Color(nsColor: .windowBackgroundColor))
+            
+            SettingsWebViewWrapper(webView: webView)
+        }
+        .frame(width: 800, height: 600)
+    }
+}
+
+private struct SettingsWebViewWrapper: NSViewRepresentable {
+    let webView: WKWebView
+    
+    func makeNSView(context: Context) -> WKWebView {
+        return webView
+    }
+    
+    func updateNSView(_ nsView: WKWebView, context: Context) {}
 }

@@ -29,6 +29,7 @@ struct ContentView: View {
     @ObservedObject var doNotDisturbManager = DoNotDisturbManager.shared
     @ObservedObject var lockScreenManager = LockScreenManager.shared
     @State private var downloadManager = DownloadManager.shared
+    @ObservedObject var notificationManager = NotificationManager.shared
     
     @Default(.enableStatsFeature) var enableStatsFeature
     @Default(.showCpuGraph) var showCpuGraph
@@ -230,9 +231,22 @@ struct ContentView: View {
                                 .panGesture(direction: .right) { translation, phase in
                                     handleSkipGesture(direction: .backward, translation: translation, phase: phase)
                                 }
+                                .conditionalModifier(vm.isHoveringNotification) { view in
+                                    view
+                                        .panGesture(direction: .up, threshold: 10) { _, phase in
+                                            if phase == .began { 
+                                                NotificationManager.shared.nextNotification()
+                                            }
+                                        }
+                                        .panGesture(direction: .down, threshold: 10) { _, phase in
+                                            if phase == .began { 
+                                                NotificationManager.shared.previousNotification()
+                                            }
+                                        }
+                                }
                         }
                 }
-                .conditionalModifier((Defaults[.closeGestureEnabled] || Defaults[.reverseScrollGestures]) && Defaults[.enableGestures] && interactionsEnabled) { view in
+                .conditionalModifier((Defaults[.closeGestureEnabled] || Defaults[.reverseScrollGestures]) && Defaults[.enableGestures] && interactionsEnabled && !vm.isHoveringNotification && coordinator.currentView != .messages) { view in
                     view
                         .panGesture(direction: .up) { translation, phase in
                             handleUpGesture(translation: translation, phase: phase)
@@ -300,6 +314,15 @@ struct ContentView: View {
                             if isHovering && vm.notchState == .closed {
                                 openNotch()
                             }
+                        }
+                    }
+                }
+                .onChange(of: coordinator.shouldOpenNotch) { _, shouldOpen in
+                    if shouldOpen {
+                        coordinator.shouldOpenNotch = false
+                        if vm.notchState == .closed {
+                            openNotch()
+                            coordinator.currentView = .messages
                         }
                     }
                 }
@@ -482,10 +505,74 @@ struct ContentView: View {
                             .frame(width: 76, alignment: .trailing)
                         }
                         .frame(height: vm.effectiveClosedNotchHeight + (isHovering ? 8 : 0), alignment: .center)
-                      } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .timer) && (coordinator.sneakPeek.type != .reminder) && (coordinator.sneakPeek.type != .volume || vm.notchState == .closed) {
+                      } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .timer) && (coordinator.sneakPeek.type != .reminder) && (coordinator.sneakPeek.type != .message) && (coordinator.sneakPeek.type != .messageBanner) && (coordinator.sneakPeek.type != .volume || vm.notchState == .closed) {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(.opacity)
-                      } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed && !lockScreenManager.isLocked {
+                       } else if coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .message || coordinator.sneakPeek.type == .messageBanner) && vm.notchState == .closed && notificationManager.activeNotification != nil && Defaults[.enableMessageNotifications] {
+                          if let notification = notificationManager.activeNotification {
+
+                                  HStack(spacing: 0) {
+                                      // Left Side: Image + Sender (Right Aligned to Notch)
+                                      HStack(spacing: 8) {
+                                          if let profilePic = notification.profilePicture {
+                                              Image(nsImage: profilePic)
+                                                  .resizable()
+                                                  .frame(width: 14, height: 14)
+                                                  .clipShape(Circle())
+                                          } else if let appIcon = notification.appIcon {
+                                              Image(nsImage: appIcon)
+                                                  .resizable()
+                                                  .frame(width: 10, height: 10)
+                                                  .clipShape(RoundedRectangle(cornerRadius: 1.5))
+                                          }
+                                          MarqueeText(
+                                              .constant(notification.sender),
+                                              font: .system(size: 9, weight: .bold),
+                                              nsFont: .caption1,
+                                              textColor: .white,
+                                              frameWidth: 110 // Slightly less than maxWidth to allow scroll
+                                          )
+                                      }
+                                      .frame(width: 120, alignment: .trailing)
+                                      .padding(.trailing, 10) // Small gap before notch
+                                      
+                                      // Notch Area Spacing (Matches actual dynamic island width)
+                                      Spacer()
+                                          .frame(width: vm.closedNotchSize.width)
+                                      
+                                      // Right Side: Message Content (Left Aligned to Notch)
+                                      HStack(spacing: 4) {
+                                          if !notification.filteredContent.isEmpty {
+                                              MarqueeText(
+                                                  .constant(notification.filteredContent),
+                                                  font: .system(size: 9),
+                                                  nsFont: .caption1,
+                                                  textColor: .white.opacity(0.8),
+                                                  frameWidth: 200
+                                              )
+                                          }
+                                          if let stickerImg = notification.stickerImage {
+                                              Image(nsImage: stickerImg)
+                                                  .resizable()
+                                                  .aspectRatio(contentMode: .fit)
+                                                  .frame(width: 14, height: 14)
+                                                  .clipShape(RoundedRectangle(cornerRadius: 2))
+                                          }
+                                      }
+                                      .lineLimit(1)
+                                      .truncationMode(.tail)
+                                      .padding(.leading, 10) // Small gap after notch
+                                      .frame(minWidth: 70, maxWidth: 160, alignment: .leading)
+                                  }
+                                  .padding(.horizontal, 8)
+                                  .frame(height: vm.effectiveClosedNotchHeight + (isHovering ? 8 : 0), alignment: .center)
+                                  .onTapGesture {
+                                      vm.open()
+                                      coordinator.currentView = .messages
+                                  }
+                           }
+
+                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed && !lockScreenManager.isLocked && !(coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .message || coordinator.sneakPeek.type == .messageBanner) && notificationManager.activeNotification != nil && Defaults[.enableMessageNotifications]) {
                           MusicLiveActivity()
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .timer) && vm.notchState == .closed && timerManager.isTimerActive && coordinator.timerLiveActivityEnabled && !vm.hideOnClosed {
                           TimerLiveActivity()
@@ -502,7 +589,7 @@ struct ContentView: View {
                           LockScreenLiveActivity()
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .privacy) && vm.notchState == .closed && privacyManager.hasAnyIndicator && (Defaults[.enableCameraDetection] || Defaults[.enableMicrophoneDetection]) && !vm.hideOnClosed {
                           PrivacyLiveActivity()
-                      } else if !coordinator.expandingView.show && vm.notchState == .closed && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace] && !vm.hideOnClosed  {
+                       } else if !coordinator.expandingView.show && vm.notchState == .closed && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace] && !vm.hideOnClosed  {
                           DynamicIslandFaceAnimation().animation(.interactiveSpring, value: musicManager.isPlayerIdle)
                       } else if vm.notchState == .open {
                           DynamicIslandHeader()
@@ -594,6 +681,17 @@ struct ContentView: View {
                                 NotchNotesView()
                             case .clipboard:
                                 NotchNotesView()
+                            case .messages:
+                                 if let notification = notificationManager.activeNotification {
+                                     if enableMinimalisticUI {
+                                         MinimalisticMessageNotificationView(notification: notification)
+                                     } else {
+                                         MessageNotificationView(notification: notification)
+                                     }
+                                 } else {
+                                     Text("No notifications")
+                                         .foregroundStyle(.secondary)
+                                 }
                           }
                       }
                       .transition(.asymmetric(
@@ -801,7 +899,7 @@ struct ContentView: View {
             let shouldFocusTimerTab = enableTimerFeature && timerDisplayMode == .tab && timerManager.isTimerActive && !enableMinimalisticUI
 
             guard vm.notchState == .closed,
-                !coordinator.sneakPeek.show,
+                (!coordinator.sneakPeek.show || coordinator.sneakPeek.type == .message),
                 (Defaults[.openNotchOnHover] || shouldFocusTimerTab) else { return }
 
             hoverTask = Task {
@@ -811,7 +909,7 @@ struct ContentView: View {
                 await MainActor.run {
                     guard self.vm.notchState == .closed,
                           self.isHovering,
-                          !self.coordinator.sneakPeek.show else { return }
+                          (!self.coordinator.sneakPeek.show || self.coordinator.sneakPeek.type == .message) else { return }
 
                     if shouldFocusTimerTab {
                         withAnimation(.smooth) {
@@ -851,7 +949,11 @@ struct ContentView: View {
     }
 
     private func shouldPreventAutoClose() -> Bool {
-        hasAnyActivePopovers() || vm.isAutoCloseSuppressed || SharingStateManager.shared.preventNotchClose
+        let result = hasAnyActivePopovers() || vm.isAutoCloseSuppressed || SharingStateManager.shared.preventNotchClose
+        if result {
+            print("ContentView: 🛡️ Auto-close PREVENTED. Popovers: \(hasAnyActivePopovers()), VM Suppressed: \(vm.isAutoCloseSuppressed), Sharing: \(SharingStateManager.shared.preventNotchClose)")
+        }
+        return result
     }
     
     // Helper to prevent rapid haptic feedback

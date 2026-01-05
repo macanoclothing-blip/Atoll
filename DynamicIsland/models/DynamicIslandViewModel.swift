@@ -28,6 +28,7 @@ class DynamicIslandViewModel: NSObject, ObservableObject {
     
     @Published var hideOnClosed: Bool = true
     @Published var isHoveringCalendar: Bool = false
+    @Published var isHoveringNotification: Bool = false
     @Published var isBatteryPopoverActive: Bool = false
     @Published var isClipboardPopoverActive: Bool = false
     @Published var isColorPickerPopoverActive: Bool = false
@@ -244,6 +245,45 @@ class DynamicIslandViewModel: NSObject, ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        coordinator.$sneakPeek
+            .receive(on: RunLoop.main)
+            .sink { [weak self] peek in
+                guard let self = self else { return }
+                // Only adjust size if closed
+                if self.notchState == .closed {
+                    self.updateClosedNotchSize(for: peek)
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func updateClosedNotchSize(for peek: sneakPeek) {
+        var baseSize = getClosedNotchSize(screen: screen)
+        
+        if peek.show && peek.type == .messageBanner {
+            // Increased height for standard message notifications to avoid notch coverage
+            // Apple Design Guidelines: Ensure content is clearly visible and not obscured
+            baseSize.height = max(baseSize.height, 145) // Increased height to show icon, name, and content clearly with proper spacing
+            baseSize.width = Defaults[.openNotchWidth]
+        } else if peek.show && peek.type == .message {
+            // Increase height for inline message notifications to avoid notch coverage
+            baseSize.height = max(baseSize.height, 60) // Minimum height to show content properly
+            baseSize.width = Defaults[.openNotchWidth]
+        }
+        
+        if notchSize != baseSize {
+            withAnimation(.smooth) {
+                notchSize = baseSize
+            }
+            if let delegate = AppDelegate.shared {
+                delegate.ensureWindowSize(
+                    addShadowPadding(to: baseSize, isMinimalistic: Defaults[.enableMinimalisticUI]),
+                    animated: true,
+                    force: false
+                )
+            }
+        }
     }
 
     private func handleMinimalisticTimerHeightChange() {
@@ -334,6 +374,10 @@ class DynamicIslandViewModel: NSObject, ObservableObject {
         notchSize = targetSize
         notchState = .open
 
+        if coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .messageBanner || coordinator.sneakPeek.type == .message) {
+            coordinator.toggleSneakPeek(status: false, type: coordinator.sneakPeek.type)
+        }
+
         // Force music information update when notch is opened
         MusicManager.shared.forceUpdate()
         focusClipboardTabIfNeeded()
@@ -357,6 +401,7 @@ class DynamicIslandViewModel: NSObject, ObservableObject {
     }
 
     func close() {
+        print("DynamicIslandViewModel: 🛑 Closing notch. State: \(notchState), Suppressed: \(isAutoCloseSuppressed)")
         let targetSize = getClosedNotchSize(screen: screen)
         notchSize = targetSize
         closedNotchSize = targetSize

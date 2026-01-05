@@ -14,6 +14,7 @@ import SwiftUI
 let downloadSneakSize: CGSize = .init(width: 65, height: 1)
 let batterySneakSize: CGSize = .init(width: 160, height: 1)
 
+@MainActor
 var openNotchSize: CGSize {
     let width = Defaults[.openNotchWidth]
     return .init(width: width, height: 200) // Adjusted to a better middle ground
@@ -44,6 +45,10 @@ var minimalisticOpenNotchSize: CGSize {
 
     if DynamicIslandViewCoordinator.shared.timerLiveActivityEnabled && TimerManager.shared.isExternalTimerActive {
         size.height += minimalisticTimerCountdownBlockHeight
+    }
+    
+    if NotificationManager.shared.activeNotification != nil {
+        size.height += 40 // Height for InPlayerNotificationBanner
     }
 
     return size

@@ -24,6 +24,7 @@ struct MinimalisticMusicPlayerView: View {
     @ObservedObject private var reminderManager = ReminderLiveActivityManager.shared
     @ObservedObject private var timerManager = TimerManager.shared
     @ObservedObject private var coordinator = DynamicIslandViewCoordinator.shared
+    @ObservedObject private var notificationManager = NotificationManager.shared
     @Default(.enableReminderLiveActivity) private var enableReminderLiveActivity
     @Default(.enableLyrics) private var enableLyrics
     @Default(.timerPresets) private var timerPresets
@@ -82,6 +83,12 @@ struct MinimalisticMusicPlayerView: View {
                     .padding(.top, 10)
             }
 
+            if !notificationManager.notifications.isEmpty {
+                InPlayerNotificationBanner()
+                    .padding(.top, enableLyrics ? 20 : 14) // More padding when lyrics are shown
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
             timerCountdownSection
 
             reminderList
@@ -91,7 +98,7 @@ struct MinimalisticMusicPlayerView: View {
         .padding(.bottom, ReminderLiveActivityManager.baselineMinimalisticBottomPadding)
         .frame(maxWidth: .infinity)
         .frame(height: calculateDynamicHeight(), alignment: .top)
-        .animation(.smooth(duration: 0.3), value: dynamicHeightSignature)
+        .animation(.spring(response: 0.35, dampingFraction: 0.78, blendDuration: 0), value: dynamicHeightSignature)
     }
 
     // MARK: - TypingLyricView
@@ -193,6 +200,7 @@ struct MinimalisticMusicPlayerView: View {
         var signature = reminderEntries.count * 10
         if enableLyrics { signature += 1 }
         if shouldShowTimerCountdown { signature += 100 }
+        if notificationManager.activeNotification != nil { signature += 1000 }
         return signature
     }
 
@@ -219,6 +227,11 @@ struct MinimalisticMusicPlayerView: View {
         // Add reminder list height if showing
         if shouldShowReminderList {
             height += reminderListHeight
+        }
+        
+        // Add notification banner height
+        if notificationManager.activeNotification != nil {
+            height += 40 + 10 // banner height + padding
         }
 
         // Add padding

@@ -484,6 +484,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }.store(in: &cancellables)
 
+        // Setup Notification Manager
+        if Defaults[.enableMessageNotifications] {
+            NotificationManager.shared.startMonitoring()
+        }
+        
+        Defaults.publisher(.enableMessageNotifications, options: []).sink { change in
+            if change.newValue {
+                NotificationManager.shared.startMonitoring()
+            } else {
+                NotificationManager.shared.stopMonitoring()
+            }
+        }.store(in: &cancellables)
+
         // Note: Polling setting removed - now uses event-driven private API detection only
 
         NotificationCenter.default.addObserver(

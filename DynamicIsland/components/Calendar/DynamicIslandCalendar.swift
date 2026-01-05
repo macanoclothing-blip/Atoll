@@ -213,13 +213,15 @@ struct CalendarView: View {
             )
             if filteredEvents.isEmpty {
                 EmptyEventsView(selectedDate: selectedDate)
+                    .padding(.top, -35)
+                    .offset(y: -10)
                 Spacer(minLength: 0)
             } else {
                 EventListView(events: calendarManager.events)
             }
         }
         .listRowBackground(Color.clear)
-        .frame(height: 120)
+        .frame(height: 110)
         .onChange(of: selectedDate) {
             Task {
                 await calendarManager.updateCurrentDate(selectedDate)
@@ -244,16 +246,20 @@ struct EmptyEventsView: View {
     let selectedDate: Date
 
     var body: some View {
-        VStack {
+        HStack(spacing: 12) {
             Image(systemName: "calendar.badge.checkmark")
-                .font(.title)
+                .font(.title2)
                 .foregroundColor(Color(white: 0.65))
-            Text(Calendar.current.isDateInToday(selectedDate) ? "No events today" : "No events")
-                .font(.subheadline)
-                .foregroundColor(.white)
-            Text("Enjoy your free time!")
-                .font(.caption)
-                .foregroundColor(Color(white: 0.65))
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Calendar.current.isDateInToday(selectedDate) ? "No events today" : "No events")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                Text("Enjoy your free time!")
+                    .font(.caption)
+                    .foregroundColor(Color(white: 0.65))
+            }
         }
     }
 }
