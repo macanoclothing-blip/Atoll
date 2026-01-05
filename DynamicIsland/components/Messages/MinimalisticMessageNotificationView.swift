@@ -13,6 +13,7 @@ struct MinimalisticMessageNotificationView: View {
     @State private var replyText: String = ""
     @FocusState private var isReplyFieldFocused: Bool
     @Default(.showProfilePictures) var showProfilePictures
+    @Default(.enableQuickReply) var enableQuickReply
     
     var body: some View {
         VStack(spacing: 12) {
@@ -121,31 +122,33 @@ struct MinimalisticMessageNotificationView: View {
             }
             .frame(maxHeight: 60)
             
-            // Reply Field (Compact)
-            HStack(spacing: 8) {
-                TextField("Reply...", text: $replyText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .focused($isReplyFieldFocused)
-                    .onSubmit {
-                        sendReply()
+            if enableQuickReply {
+                // Reply Field (Compact)
+                HStack(spacing: 8) {
+                    TextField("Reply...", text: $replyText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .focused($isReplyFieldFocused)
+                        .onSubmit {
+                            sendReply()
+                        }
+                    
+                    Button(action: { sendReply() }) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.blue)
                     }
-                
-                Button(action: { sendReply() }) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.blue)
+                    .buttonStyle(.plain)
+                    .disabled(replyText.isEmpty)
+                    .opacity(replyText.isEmpty ? 0.5 : 1)
                 }
-                .buttonStyle(.plain)
-                .disabled(replyText.isEmpty)
-                .opacity(replyText.isEmpty ? 0.5 : 1)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity)
     }

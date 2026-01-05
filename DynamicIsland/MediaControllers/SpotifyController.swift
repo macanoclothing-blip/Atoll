@@ -26,7 +26,7 @@ class SpotifyController: MediaControllerProtocol {
     private var notificationTask: Task<Void, Never>?
     
     // Constant for time between command and update
-    private let commandUpdateDelay: Duration = .milliseconds(25)
+    private let commandUpdateDelay: Duration = .milliseconds(200)
 
     private var lastArtworkURL: String?
     private var artworkFetchTask: Task<Void, Never>?
@@ -58,9 +58,9 @@ class SpotifyController: MediaControllerProtocol {
     }
     
     // MARK: - Protocol Implementation
-    func play() async { await executeCommand("play") }
-    func pause() async { await executeCommand("pause") }
-    func togglePlay() async { await executeCommand("playpause") }
+    func play() async { await executeAndRefresh("play") }
+    func pause() async { await executeAndRefresh("pause") }
+    func togglePlay() async { await executeAndRefresh("playpause") }
     func nextTrack() async { await executeCommand("next track") }
     
     func previousTrack() async {

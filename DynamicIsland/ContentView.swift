@@ -509,67 +509,66 @@ struct ContentView: View {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(.opacity)
                        } else if coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .message || coordinator.sneakPeek.type == .messageBanner) && vm.notchState == .closed && notificationManager.activeNotification != nil && Defaults[.enableMessageNotifications] {
-                          if let notification = notificationManager.activeNotification {
-
-                                  HStack(spacing: 0) {
-                                      // Left Side: Image + Sender (Right Aligned to Notch)
-                                      HStack(spacing: 8) {
-                                          if let profilePic = notification.profilePicture {
-                                              Image(nsImage: profilePic)
-                                                  .resizable()
-                                                  .frame(width: 14, height: 14)
-                                                  .clipShape(Circle())
-                                          } else if let appIcon = notification.appIcon {
-                                              Image(nsImage: appIcon)
-                                                  .resizable()
-                                                  .frame(width: 10, height: 10)
-                                                  .clipShape(RoundedRectangle(cornerRadius: 1.5))
-                                          }
-                                          MarqueeText(
-                                              .constant(notification.sender),
-                                              font: .system(size: 9, weight: .bold),
-                                              nsFont: .caption1,
-                                              textColor: .white,
-                                              frameWidth: 110 // Slightly less than maxWidth to allow scroll
-                                          )
-                                      }
-                                      .frame(width: 120, alignment: .trailing)
-                                      .padding(.trailing, 10) // Small gap before notch
-                                      
-                                      // Notch Area Spacing (Matches actual dynamic island width)
-                                      Spacer()
-                                          .frame(width: vm.closedNotchSize.width)
-                                      
-                                      // Right Side: Message Content (Left Aligned to Notch)
-                                      HStack(spacing: 4) {
-                                          if !notification.filteredContent.isEmpty {
-                                              MarqueeText(
-                                                  .constant(notification.filteredContent),
-                                                  font: .system(size: 9),
-                                                  nsFont: .caption1,
-                                                  textColor: .white.opacity(0.8),
-                                                  frameWidth: 200
-                                              )
-                                          }
-                                          if let stickerImg = notification.stickerImage {
-                                              Image(nsImage: stickerImg)
-                                                  .resizable()
-                                                  .aspectRatio(contentMode: .fit)
-                                                  .frame(width: 14, height: 14)
-                                                  .clipShape(RoundedRectangle(cornerRadius: 2))
-                                          }
-                                      }
-                                      .lineLimit(1)
-                                      .truncationMode(.tail)
-                                      .padding(.leading, 10) // Small gap after notch
-                                      .frame(minWidth: 70, maxWidth: 160, alignment: .leading)
-                                  }
-                                  .padding(.horizontal, 8)
-                                  .frame(height: vm.effectiveClosedNotchHeight + (isHovering ? 8 : 0), alignment: .center)
-                                  .onTapGesture {
-                                      vm.open()
-                                      coordinator.currentView = .messages
-                                  }
+                           if let notification = notificationManager.activeNotification {
+                               HStack(spacing: 0) {
+                                   // Left Side: Image + Sender (Right Aligned to Notch)
+                                   HStack(spacing: 8) {
+                                       if let profilePic = notification.profilePicture, Defaults[.showProfilePictures] {
+                                           Image(nsImage: profilePic)
+                                               .resizable()
+                                               .frame(width: 14, height: 14)
+                                               .clipShape(Circle())
+                                       } else if let appIcon = notification.appIcon {
+                                           Image(nsImage: appIcon)
+                                               .resizable()
+                                               .frame(width: 10, height: 10)
+                                               .clipShape(RoundedRectangle(cornerRadius: 1.5))
+                                       }
+                                       MarqueeText(
+                                           .constant(notification.sender),
+                                           font: .system(size: 9, weight: .bold),
+                                           nsFont: .caption1,
+                                           textColor: .white,
+                                           frameWidth: 110 // Slightly less than maxWidth to allow scroll
+                                       )
+                                   }
+                                   .frame(width: 120, alignment: .trailing)
+                                   .padding(.trailing, 10) // Small gap before notch
+                                   
+                                   // Notch Area Spacing (Matches actual dynamic island width)
+                                   Spacer()
+                                       .frame(width: vm.closedNotchSize.width)
+                                   
+                                   // Right Side: Message Content (Left Aligned to Notch)
+                                   HStack(spacing: 4) {
+                                       if !notification.filteredContent.isEmpty {
+                                           MarqueeText(
+                                               .constant(notification.filteredContent),
+                                               font: .system(size: 9),
+                                               nsFont: .caption1,
+                                               textColor: .white.opacity(0.8),
+                                               frameWidth: 200
+                                           )
+                                       }
+                                       if let stickerImg = notification.stickerImage {
+                                           Image(nsImage: stickerImg)
+                                               .resizable()
+                                               .aspectRatio(contentMode: .fit)
+                                               .frame(width: 14, height: 14)
+                                               .clipShape(RoundedRectangle(cornerRadius: 2))
+                                       }
+                                   }
+                                   .lineLimit(1)
+                                   .truncationMode(.tail)
+                                   .padding(.leading, 10) // Small gap after notch
+                                   .frame(minWidth: 70, maxWidth: 160, alignment: .leading)
+                               }
+                               .padding(.horizontal, 8)
+                               .frame(height: vm.effectiveClosedNotchHeight + (isHovering ? 8 : 0), alignment: .center)
+                               .onTapGesture {
+                                   vm.open()
+                                   coordinator.currentView = .messages
+                               }
                            }
 
                        } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed && !lockScreenManager.isLocked && !(coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .message || coordinator.sneakPeek.type == .messageBanner) && notificationManager.activeNotification != nil && Defaults[.enableMessageNotifications]) {

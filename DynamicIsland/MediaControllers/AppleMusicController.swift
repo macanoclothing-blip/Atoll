@@ -55,14 +55,20 @@ class AppleMusicController: MediaControllerProtocol {
     // MARK: - Protocol Implementation
     func play() async {
         await executeCommand("play")
+        try? await Task.sleep(for: .milliseconds(200))
+        await updatePlaybackInfo()
     }
     
     func pause() async {
         await executeCommand("pause")
+        try? await Task.sleep(for: .milliseconds(200))
+        await updatePlaybackInfo()
     }
     
     func togglePlay() async {
         await executeCommand("playpause")
+        try? await Task.sleep(for: .milliseconds(200))
+        await updatePlaybackInfo()
     }
     
     func nextTrack() async {

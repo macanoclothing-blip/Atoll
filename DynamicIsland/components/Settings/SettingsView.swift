@@ -5315,7 +5315,6 @@ struct MessagesSettings: View {
     @Default(.enableMessageNotifications) var enableMessageNotifications
     @Default(.showProfilePictures) var showProfilePictures
     @Default(.enableQuickReply) var enableQuickReply
-    @Default(.messageNotificationStyle) var messageNotificationStyle
     @Default(.autoExpandNotifications) var autoExpandNotifications
     @ObservedObject var notificationManager = NotificationManager.shared
     @State private var showingAlert = false
@@ -5362,6 +5361,8 @@ struct MessagesSettings: View {
                     Defaults.Toggle("Enable Quick Reply", key: .enableQuickReply)
                         .settingsHighlight(id: highlightID("Enable Quick Reply"))
                     
+                    Defaults.Toggle("Auto-expand Notifications", key: .autoExpandNotifications)
+                        .settingsHighlight(id: highlightID("Auto-expand Notifications"))
                 }
             } header: {
                 Text("General")

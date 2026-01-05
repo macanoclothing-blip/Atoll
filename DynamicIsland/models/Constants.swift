@@ -191,12 +191,6 @@ enum SneakPeekStyle: String, CaseIterable, Identifiable, Defaults.Serializable {
     var id: String { self.rawValue }
 }
 
-enum MessageNotificationStyle: String, CaseIterable, Identifiable, Defaults.Serializable {
-    case standard = "Standard"
-    case inline = "Inline"
-    
-    var id: String { self.rawValue }
-}
 
 enum ProgressBarStyle: String, CaseIterable, Identifiable, Defaults.Serializable {
     case hierarchical = "Hierarchical"
@@ -768,7 +762,6 @@ extension Defaults.Keys {
     static let showProfilePictures = Key<Bool>("showProfilePictures", default: true)
     static let enableQuickReply = Key<Bool>("enableQuickReply", default: true)
     static let autoExpandNotifications = Key<Bool>("autoExpandNotifications", default: true)
-    static let messageNotificationStyle = Key<MessageNotificationStyle>("messageNotificationStyle", default: .inline)
     
     // Helper to determine the default media controller based on macOS version
     static var defaultMediaController: MediaControllerType {

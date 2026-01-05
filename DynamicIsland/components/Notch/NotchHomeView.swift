@@ -266,7 +266,8 @@ struct MusicControlsView: View {
         case .playPause:
             HoverButton(
                 icon: musicManager.isPlaying ? (musicManager.isLiveStream ? "stop.fill" : "pause.fill") : "play.fill",
-                scale: .large
+                scale: .large,
+                pressEffect: .bounce
             ) {
                 MusicManager.shared.togglePlay()
             }

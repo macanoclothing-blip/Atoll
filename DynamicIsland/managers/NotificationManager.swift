@@ -25,11 +25,23 @@ class NotificationManager: ObservableObject {
     private var dbFileDescriptors: [Int32] = []
     private let dbPath = "/Users/\(NSUserName())/Library/Group Containers/group.com.apple.usernoted/db2/db"
     private let tempDbPath = "/tmp/atoll_notifications.db"
+    private var cancellables = Set<AnyCancellable>()
     
     private init() {
         if Defaults[.enableMessageNotifications] {
             startMonitoring()
         }
+        
+        Defaults.publisher(.enableMessageNotifications)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] change in
+                if change.newValue {
+                    self?.startMonitoring()
+                } else {
+                    self?.stopMonitoring()
+                }
+            }
+            .store(in: &cancellables)
     }
     
     func startMonitoring() {
@@ -723,6 +735,10 @@ class NotificationManager: ObservableObject {
             value: 0,
             icon: ""
         )
+
+        if Defaults[.autoExpandNotifications] {
+            coordinator.shouldOpenNotch = true
+        }
     }
     
     func nextNotification() {

@@ -18,6 +18,7 @@ struct HoverButton: View {
     var action: () -> Void
     
     @State private var isHovering = false
+    @State private var pressScale: CGFloat = 1.0
     @State private var pressOffset: CGFloat = 0
     @State private var wiggleAngle: Double = 0
     @State private var wiggleToken: Int = 0
@@ -62,6 +63,7 @@ struct HoverButton: View {
                 }
         }
         .buttonStyle(PlainButtonStyle())
+        .scaleEffect(pressScale)
         .offset(x: pressOffset)
         .rotationEffect(.degrees(wiggleAngle))
         .onHover { hovering in
@@ -80,6 +82,15 @@ struct HoverButton: View {
         guard let effect = override ?? pressEffect else { return }
 
         switch effect {
+        case .bounce:
+            withAnimation(.spring(response: 0.15, dampingFraction: 0.4)) {
+                pressScale = 0.85
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                    pressScale = 1.0
+                }
+            }
         case .nudge(let amount):
             withAnimation(.spring(response: 0.2, dampingFraction: 0.55)) {
                 pressOffset = amount
@@ -107,6 +118,7 @@ struct HoverButton: View {
     }
 
     enum PressEffect {
+        case bounce
         case nudge(CGFloat)
         case wiggle(WiggleDirection)
     }

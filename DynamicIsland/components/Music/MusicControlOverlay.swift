@@ -80,7 +80,7 @@ struct MusicControlOverlay: View {
     private var playPauseConfig: ButtonConfig {
         ButtonConfig(
             icon: musicManager.isPlaying ? "pause.fill" : "play.fill",
-            pressEffect: .none,
+            pressEffect: .bounce,
             symbolEffect: .replace,
             action: { MusicManager.shared.togglePlay() }
         )
@@ -168,6 +168,7 @@ private struct FloatingMediaButton: View {
 
     @State private var isHovering = false
     @State private var pressOffset: CGFloat = 0
+    @State private var pressScale: CGFloat = 1.0
     @State private var rotationAngle: Double = 0
     @State private var wiggleToken: Int = 0
     @State private var lastExternalTriggerToken: Int?
@@ -187,6 +188,7 @@ private struct FloatingMediaButton: View {
                 .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
         .buttonStyle(PlainButtonStyle())
+        .scaleEffect(pressScale)
         .offset(x: pressOffset)
         .rotationEffect(.degrees(rotationAngle))
         .disabled(!isEnabled)
@@ -248,6 +250,15 @@ private struct FloatingMediaButton: View {
         switch activeEffect {
         case .none:
             return
+        case .bounce:
+            withAnimation(.spring(response: 0.15, dampingFraction: 0.4)) {
+                pressScale = 0.85
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                    pressScale = 1.0
+                }
+            }
         case .nudge(let amount):
             withAnimation(.spring(response: 0.16, dampingFraction: 0.72)) {
                 pressOffset = amount
@@ -277,6 +288,7 @@ private struct FloatingMediaButton: View {
 
     enum PressEffect {
         case none
+        case bounce
         case nudge(CGFloat)
         case wiggle(WiggleDirection)
     }

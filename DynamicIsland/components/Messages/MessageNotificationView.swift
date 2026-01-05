@@ -6,6 +6,7 @@ struct MessageNotificationView: View {
     @EnvironmentObject var vm: DynamicIslandViewModel
     @ObservedObject var coordinator = DynamicIslandViewCoordinator.shared
     @Default(.showProfilePictures) var showProfilePictures
+    @Default(.enableQuickReply) var enableQuickReply
     @State private var replyText: String = ""
     @FocusState private var isFocused: Bool
     @State private var selectedFileURL: URL?
@@ -43,11 +44,13 @@ struct MessageNotificationView: View {
             }
             .frame(maxHeight: 250) // Limit expansion height
             
-            Divider()
-                .background(Color.white.opacity(0.1))
-                .padding(.horizontal, 10)
-            
-            replySection
+            if enableQuickReply {
+                Divider()
+                    .background(Color.white.opacity(0.1))
+                    .padding(.horizontal, 10)
+                
+                replySection
+            }
         }
         .frame(maxWidth: .infinity)
         .background(Color.black.opacity(0.8))
