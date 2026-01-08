@@ -26,6 +26,7 @@ struct InlineHUD: View {
     @Default(.showBluetoothDeviceNameMarquee) var showBluetoothDeviceNameMarquee
     @Default(.enableMinimalisticUI) var enableMinimalisticUI
     @Default(.showCapsLockLabel) var showCapsLockLabel
+    @Default(.capsLockIndicatorTintMode) var capsLockTintMode
     @ObservedObject var bluetoothManager = BluetoothAudioManager.shared
     
     @State private var displayName: String = ""
@@ -33,7 +34,7 @@ struct InlineHUD: View {
     var body: some View {
         let useCircularIndicator = useCircularBluetoothBatteryIndicator
         let hasBatteryLevel = value > 0
-        let capsLockAccentColor: Color = Defaults[.capsLockIndicatorUseGreenColor] ? .green : .white
+        let capsLockAccentColor = capsLockTintMode.color
 
         let baseInfoWidth: CGFloat = {
             if type == .bluetoothAudio {

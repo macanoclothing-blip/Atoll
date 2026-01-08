@@ -2538,6 +2538,7 @@ struct LiveActivitiesSettings: View {
     @Default(.enableScreenRecordingDetection) var enableScreenRecordingDetection
     @Default(.enableDoNotDisturbDetection) var enableDoNotDisturbDetection
     @Default(.focusIndicatorNonPersistent) var focusIndicatorNonPersistent
+    @Default(.capsLockIndicatorTintMode) var capsLockTintMode
 
     private func highlightID(_ title: String) -> String {
         SettingsTab.liveActivities.highlightID(for: title)
@@ -2647,9 +2648,14 @@ struct LiveActivitiesSettings: View {
                     .disabled(!Defaults[.enableCapsLockIndicator])
                     .settingsHighlight(id: highlightID("Show Caps Lock label"))
 
-                Defaults.Toggle("Use green color for Caps Lock text", key: .capsLockIndicatorUseGreenColor)
-                    .disabled(!Defaults[.enableCapsLockIndicator])
-                    .settingsHighlight(id: highlightID("Use green color for Caps Lock text"))
+                Picker("Caps Lock color", selection: $capsLockTintMode) {
+                    ForEach(CapsLockIndicatorTintMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(!Defaults[.enableCapsLockIndicator])
+                .settingsHighlight(id: highlightID("Caps Lock color"))
             } header: {
                 Text("Caps Lock Indicator")
             } footer: {
