@@ -2427,13 +2427,13 @@ private struct DevicesSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Defaults.Toggle("Show Bluetooth device connections", key: .showBluetoothDeviceConnections)
+                Defaults.Toggle(String(localized: "Show Bluetooth device connections"), key: .showBluetoothDeviceConnections)
                     .settingsHighlight(id: highlightID("Show Bluetooth device connections"))
-                Defaults.Toggle("Use circular battery indicator", key: .useCircularBluetoothBatteryIndicator)
+                Defaults.Toggle(String(localized: "Use circular battery indicator"), key: .useCircularBluetoothBatteryIndicator)
                     .settingsHighlight(id: highlightID("Use circular battery indicator"))
-                Defaults.Toggle("Show battery percentage text in HUD", key: .showBluetoothBatteryPercentageText)
+                Defaults.Toggle(String(localized: "Show battery percentage text in HUD"), key: .showBluetoothBatteryPercentageText)
                     .settingsHighlight(id: highlightID("Show battery percentage text in HUD"))
-                Defaults.Toggle("Scroll device name in HUD", key: .showBluetoothDeviceNameMarquee)
+                Defaults.Toggle(String(localized: "Scroll device name in HUD"), key: .showBluetoothDeviceNameMarquee)
                     .settingsHighlight(id: highlightID("Scroll device name in HUD"))
             } header: {
                 Text("Bluetooth Audio Devices")
@@ -2444,7 +2444,7 @@ private struct DevicesSettingsView: View {
             }
 
             Section {
-                Defaults.Toggle("Color-coded battery display", key: .useColorCodedBatteryDisplay)
+                Defaults.Toggle(String(localized: "Color-coded battery display"), key: .useColorCodedBatteryDisplay)
                     .disabled(colorCodingDisabled)
                     .settingsHighlight(id: highlightID("Color-coded battery display"))
             } header: {
@@ -2643,7 +2643,7 @@ struct Media: View {
             Section {
                 Picker("Music Source", selection: $mediaController) {
                     ForEach(availableMediaControllers) { controller in
-                        Text(controller.rawValue).tag(controller)
+                        Text(controller.localizedName).tag(controller)
                     }
                 }
                 .onChange(of: mediaController) { _, _ in
@@ -2672,7 +2672,7 @@ struct Media: View {
                 }
             }
             Section {
-                Defaults.Toggle("Show media controls in Dynamic Island", key: .showStandardMediaControls)
+                Defaults.Toggle(String(localized: "Show media controls in Dynamic Island"), key: .showStandardMediaControls)
                     .disabled(enableMinimalisticUI)
                     .settingsHighlight(id: highlightID("Show media controls in Dynamic Island"))
 
@@ -2696,7 +2696,7 @@ struct Media: View {
                     }
                 }
                 if showShuffleAndRepeat {
-                    Defaults.Toggle("Show \"Change Media Output\" control", key: .showMediaOutputControl)
+                    Defaults.Toggle(String(localized: "Show \"Change Media Output\" control"), key: .showMediaOutputControl)
                         .settingsHighlight(id: highlightID("Show Change Media Output control"))
                         .help("Adds the AirPlay/route picker button back to the customizable controls palette.")
                     MusicSlotConfigurationView()
@@ -2711,7 +2711,7 @@ struct Media: View {
             }
 
             Section(header: Text("Lock Screen Media")) {
-                Defaults.Toggle("Enable album art parallax", key: .lockScreenMusicAlbumParallaxEnabled)
+                Defaults.Toggle(String(localized: "Enable album art parallax"), key: .lockScreenMusicAlbumParallaxEnabled)
                     .settingsHighlight(id: highlightID("Enable album art parallax"))
                 Text("Applies the notch-style parallax effect to the lock screen media widget album art.")
                     .font(.caption)
@@ -2741,18 +2741,16 @@ struct Media: View {
                 )
                 .disabled(standardControlsSuppressed)
                 .help(standardControlsSuppressed ? "Standard notch media controls are hidden while this toggle is off." : "")
-                Defaults.Toggle(
-                    "Show floating media controls",
-                    key: .musicControlWindowEnabled
-                )
+                Defaults.Toggle(String(localized: "Show floating media controls"),
+                key: .musicControlWindowEnabled)
                 .disabled(!coordinator.musicLiveActivityEnabled || standardControlsSuppressed)
                 .help("Displays play/pause and skip buttons beside the notch while music is active. Disabled by default.")
                 Toggle("Enable sneak peek", isOn: $enableSneakPeek)
                 Toggle("Show sneak peek on playback changes", isOn: $showSneakPeekOnTrackChange)
                     .disabled(!enableSneakPeek)
-                Defaults.Toggle("Enable lyrics", key: .enableLyrics)
+                Defaults.Toggle(String(localized: "Enable lyrics"), key: .enableLyrics)
                     .settingsHighlight(id: highlightID("Enable lyrics"))
-                Defaults.Toggle("Enable album art parallax effect", key: .enableParallaxEffect)
+                Defaults.Toggle(String(localized: "Enable album art parallax effect"), key: .enableParallaxEffect)
                     .settingsHighlight(id: highlightID("Enable album art parallax effect"))
                 Picker("Sneak Peek Style", selection: $sneakPeekStyles){
                     ForEach(SneakPeekStyle.allCases) { style in
@@ -2789,10 +2787,10 @@ struct Media: View {
             }
 
             Section {
-                Defaults.Toggle("Show lock screen media panel", key: .enableLockScreenMediaWidget)
-                Defaults.Toggle("Show media app icon", key: .lockScreenShowAppIcon)
+                Defaults.Toggle(String(localized: "Show lock screen media panel"), key: .enableLockScreenMediaWidget)
+                Defaults.Toggle(String(localized: "Show media app icon"), key: .lockScreenShowAppIcon)
                     .disabled(!enableLockScreenMediaWidget)
-                Defaults.Toggle("Show panel border", key: .lockScreenPanelShowsBorder)
+                Defaults.Toggle(String(localized: "Show panel border"), key: .lockScreenPanelShowsBorder)
                     .disabled(!enableLockScreenMediaWidget)
                 if lockScreenGlassCustomizationMode == .customLiquid {
                     customLiquidBlurRow
@@ -6346,7 +6344,7 @@ struct ScreenAssistantSettings: View {
                             }
                         }
                         .pickerStyle(.menu)
-                        .frame(width: 100)
+                        .frame(width: 150)
                     }
                     .settingsHighlight(id: highlightID("Display Mode"))
                     
@@ -6473,7 +6471,7 @@ struct ColorPickerSettings: View {
                             }
                         }
                         .pickerStyle(.menu)
-                        .frame(width: 100)
+                        .frame(width: 150)
                     }
                     .settingsHighlight(id: highlightID("Display Mode"))
                     
@@ -6487,7 +6485,7 @@ struct ColorPickerSettings: View {
                             Text("20 colors").tag(20)
                         }
                         .pickerStyle(.menu)
-                        .frame(width: 100)
+                        .frame(width: 150)
                     }
                     .settingsHighlight(id: highlightID("History Size"))
                     

@@ -284,15 +284,15 @@ enum ScreenAssistantDisplayMode: String, CaseIterable, Codable, Defaults.Seriali
     
     var displayName: String {
         switch self {
-        case .popover: return "Popover"
-        case .panel: return "Panel"
+        case .popover: return String(localized: "Popover")
+        case .panel: return String(localized: "Panel")
         }
     }
     
     var description: String {
         switch self {
-        case .popover: return "Shows screen assistant as a dropdown attached to the AI button"
-        case .panel: return "Shows screen assistant in a floating panel near the notch"
+        case .popover: return String(localized: "Shows screen assistant as a dropdown attached to the AI button")
+        case .panel: return String(localized: "Shows screen assistant in a floating panel near the notch")
         }
     }
 }
@@ -335,6 +335,15 @@ enum MediaControllerType: String, CaseIterable, Identifiable, Defaults.Serializa
     case youtubeMusic = "Youtube Music"
     
     var id: String { self.rawValue }
+    
+    var localizedName: String {
+        switch self {
+        case .nowPlaying: return String(localized: "Now Playing")
+        case .appleMusic: return String(localized: "Apple Music")
+        case .spotify: return String(localized: "Spotify")
+        case .youtubeMusic: return String(localized: "Youtube Music")
+        }
+    }
 }
 
 // Sneak peek styles for selection in settings
