@@ -40,6 +40,7 @@ final class LockScreenTimerWidgetManager {
     private let timerManager = TimerManager.shared
     private var cancellables = Set<AnyCancellable>()
     private var isLocked: Bool = false
+    private var isPreviewing: Bool = false
 
     private init() {
         observeTimerState()
@@ -53,6 +54,12 @@ final class LockScreenTimerWidgetManager {
         } else {
             LockScreenTimerWidgetPanelManager.shared.hide()
         }
+    }
+
+    func setPreviewMode(_ enabled: Bool) {
+        guard isPreviewing != enabled else { return }
+        isPreviewing = enabled
+        updateVisibility()
     }
 
     func refreshPositionForOffsets(animated: Bool) {
@@ -112,6 +119,9 @@ final class LockScreenTimerWidgetManager {
 
     private func shouldDisplayWidget() -> Bool {
         guard Defaults[.enableLockScreenTimerWidget] else { return false }
+        if isPreviewing {
+            return timerManager.isTimerActive
+        }
         guard isLocked else { return false }
         return timerManager.hasManualTimerRunning
     }

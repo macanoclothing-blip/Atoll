@@ -40,6 +40,8 @@ class CalendarManager: ObservableObject {
     @Published var reminderAuthorizationStatus: EKAuthorizationStatus = .notDetermined
     @Published var lockScreenEvents: [EventModel] = []
 
+    private var lockScreenPreviewEvents: [EventModel]?
+
     private var selectedCalendars: [CalendarModel] = []
     private let calendarService = CalendarService()
     private var lastEventsFetchDate: Date?
@@ -253,6 +255,16 @@ class CalendarManager: ObservableObject {
     }
 
     func updateLockScreenEvents(force: Bool = false) async {
+        if let previewEvents = lockScreenPreviewEvents {
+            if lockScreenEvents != previewEvents {
+                withAnimation(.smooth(duration: 0.25)) {
+                    lockScreenEvents = previewEvents
+                }
+            }
+            lastLockScreenEventsFetchDate = Date()
+            return
+        }
+
         let now = Date()
 
         if !force,
@@ -316,6 +328,18 @@ class CalendarManager: ObservableObject {
 
         withAnimation(.smooth(duration: 0.25)) {
             lockScreenEvents = fetched
+        }
+        lastLockScreenEventsFetchDate = Date()
+    }
+
+    func setLockScreenPreviewEvents(_ events: [EventModel]?) {
+        lockScreenPreviewEvents = events
+        guard let events else {
+            Task { await updateLockScreenEvents(force: true) }
+            return
+        }
+        withAnimation(.smooth(duration: 0.25)) {
+            lockScreenEvents = events
         }
         lastLockScreenEventsFetchDate = Date()
     }

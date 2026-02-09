@@ -700,6 +700,7 @@ struct SettingsView: View {
             SettingsSearchEntry(tab: .appearance, title: "App icon", keywords: ["app icon", "custom icon"], highlightID: SettingsTab.appearance.highlightID(for: "App icon")),
 
             // Lock Screen
+            SettingsSearchEntry(tab: .lockScreen, title: "Preview lock screen widgets", keywords: ["preview", "lock screen", "widgets"], highlightID: SettingsTab.lockScreen.highlightID(for: "Preview lock screen widgets")),
             SettingsSearchEntry(tab: .lockScreen, title: "Enable lock screen live activity", keywords: ["lock screen", "live activity"], highlightID: SettingsTab.lockScreen.highlightID(for: "Enable lock screen live activity")),
             SettingsSearchEntry(tab: .lockScreen, title: "Play lock/unlock sounds", keywords: ["chime", "sound"], highlightID: SettingsTab.lockScreen.highlightID(for: "Play lock/unlock sounds")),
             SettingsSearchEntry(tab: .lockScreen, title: "Material", keywords: ["glass", "frosted", "liquid"], highlightID: SettingsTab.lockScreen.highlightID(for: "Material")),
@@ -2801,7 +2802,7 @@ private struct SettingsLoopingVideoIcon: NSViewRepresentable {
         private var controller: SettingsLoopingPlayerController?
 
         func attach(layer: AVPlayerLayer, url: URL) {
-            controller = SettingsLoopingPlayerController(url: url)
+            controller = SettingsLoopingPlayerController(url: url, autoPlay: true)
             layer.player = controller?.player
         }
     }
@@ -2811,13 +2812,23 @@ private final class SettingsLoopingPlayerController {
     let player: AVQueuePlayer
     private var looper: AVPlayerLooper?
 
-    init(url: URL) {
+    init(url: URL, autoPlay: Bool = true) {
         let item = AVPlayerItem(url: url)
         player = AVQueuePlayer()
         player.isMuted = true
         player.actionAtItemEnd = .none
         looper = AVPlayerLooper(player: player, templateItem: item)
+        if autoPlay {
+            player.play()
+        }
+    }
+
+    func play() {
         player.play()
+    }
+
+    func pause() {
+        player.pause()
     }
 
     deinit {
@@ -3298,6 +3309,9 @@ struct Appearance: View {
                                     .foregroundStyle(.secondary)
                             }
                             Slider(value: appearanceMusicVariantBinding, in: liquidVariantRange, step: 1)
+
+                            LockScreenGlassVariantPreviewCell(variant: $lockScreenMusicLiquidGlassVariant)
+                                .padding(.top, 6)
                         }
                         .settingsHighlight(id: highlightID("Music panel variant (appearance)"))
                         .disabled(!enableLockScreenMediaWidget)
@@ -3810,6 +3824,7 @@ struct Appearance: View {
 
 struct LockScreenSettings: View {
     @ObservedObject private var calendarManager = CalendarManager.shared
+    @ObservedObject private var previewManager = LockScreenWidgetPreviewManager.shared
     @Default(.lockScreenGlassStyle) private var lockScreenGlassStyle
     @Default(.lockScreenGlassCustomizationMode) private var lockScreenGlassCustomizationMode
     @Default(.lockScreenMusicLiquidGlassVariant) private var lockScreenMusicLiquidGlassVariant
@@ -3933,6 +3948,18 @@ struct LockScreenSettings: View {
                 Text("Live Activity & Feedback")
             } footer: {
                 Text("Controls whether Dynamic Island mirrors lock/unlock events with its own live activity and audible chimes.")
+            }
+
+            Section {
+                Button(previewManager.isPreviewVisible ? "Hide lock screen preview" : "Preview lock screen widgets") {
+                    previewManager.togglePreview()
+                }
+                .buttonStyle(.borderedProminent)
+                .settingsHighlight(id: highlightID("Preview lock screen widgets"))
+            } header: {
+                Text("Preview")
+            } footer: {
+                Text("Opens a transparent preview window with mock data that mirrors the current lock screen widget configuration.")
             }
 
             Section {
@@ -4400,7 +4427,8 @@ extension LockScreenSettings {
         value: Binding<Double>,
         currentValue: Int,
         isEnabled: Bool,
-        highlight: String
+        highlight: String,
+        preview: AnyView? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -4411,10 +4439,62 @@ extension LockScreenSettings {
                     .foregroundStyle(.secondary)
             }
             Slider(value: value, in: liquidVariantRange, step: 1)
+
+            if let preview {
+                preview
+                    .padding(.top, 6)
+            }
         }
         .settingsHighlight(id: highlight)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.4)
+    }
+}
+
+private struct LockScreenGlassVariantPreviewCell: View {
+    @Binding var variant: LiquidGlassVariant
+
+    private let cornerRadius: CGFloat = 16
+    private let previewCornerRadius: CGFloat = 14
+    private let previewSize = CGSize(width: 190, height: 96)
+
+    var body: some View {
+        ZStack {
+            Image("glassdesktop")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+
+            liquidGlassPreview
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 120)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .padding(.vertical, 6)
+        .allowsHitTesting(false)
+    }
+
+    private var liquidGlassPreview: some View {
+        TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
+            let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.0)
+            let opacityJitter = phase < 0.5 ? 1.0 : 0.999999
+            LiquidGlassBackground(
+                variant: variant,
+                cornerRadius: previewCornerRadius,
+                trigger: context.date.timeIntervalSinceReferenceDate
+            ) {
+                Color.white.opacity(0.04)
+            }
+            .frame(width: previewSize.width, height: previewSize.height)
+            .opacity(opacityJitter)
+        }
+        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 6)
     }
 }
 
