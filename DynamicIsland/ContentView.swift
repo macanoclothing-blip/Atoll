@@ -126,6 +126,7 @@ struct ContentView: View {
     @State private var hoverTask: Task<Void, Never>?
     @State private var isHovering: Bool = false
     @State private var lastHapticTime: Date = Date()
+    @State private var hoverClickMonitor: Any?
 
     @State private var gestureProgress: CGFloat = .zero
     @State private var skipGestureActiveDirection: MusicManager.SkipDirection?
@@ -271,6 +272,7 @@ struct ContentView: View {
                 }
                 .conditionalModifier(interactionsEnabled) { view in
                     view
+                        .contentShape(currentNotchShape)
                         .onHover { hovering in
                             handleHover(hovering)
                         }
@@ -389,12 +391,13 @@ struct ContentView: View {
 //                    #endif
 //                    .keyboardShortcut("E", modifiers: .command)
                 }
+
         }
-    .frame(
-        maxWidth: dynamicNotchSize.width,
-        maxHeight: dynamicNotchSize.height + currentShadowPadding,
-        alignment: .top
-    )
+        .frame(
+            maxWidth: dynamicNotchSize.width,
+            maxHeight: dynamicNotchSize.height + currentShadowPadding,
+            alignment: .top
+        )
         .environmentObject(privacyManager)
         .onChange(of: dynamicNotchSize) { oldSize, newSize in
             guard oldSize != newSize else { return }
@@ -424,6 +427,7 @@ struct ContentView: View {
                 releaseMusicControlWindowUpdates(after: musicControlResumeDelay)
                 enqueueMusicControlWindowSync(forceRefresh: true, delay: 0.05)
             }
+
         }
         .onChange(of: musicControlWindowEnabled) { _, enabled in
             if enabled {
@@ -502,6 +506,7 @@ struct ContentView: View {
         }
         .onDisappear {
             hoverTask?.cancel()
+            stopHoverClickMonitor()
             cancelMusicControlWindowSync()
             hideMusicControlWindow()
             cancelMusicControlVisibilityTimer()
@@ -1430,11 +1435,39 @@ struct ContentView: View {
         }
     }
 
+    private func startHoverClickMonitor() {
+        guard hoverClickMonitor == nil else { return }
+        hoverClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { _ in
+            Task { @MainActor in
+                guard !lockScreenManager.isLocked else { return }
+                guard vm.notchState == .closed else { return }
+                guard isHovering else { return }
+                if Defaults[.enableHaptics] {
+                    triggerHapticIfAllowed()
+                }
+                openNotch()
+            }
+        }
+    }
+
+    private func stopHoverClickMonitor() {
+        if let hoverClickMonitor {
+            NSEvent.removeMonitor(hoverClickMonitor)
+            self.hoverClickMonitor = nil
+        }
+    }
+
     // MARK: - Hover Management
     
     /// Handle hover state changes with debouncing
     private func handleHover(_ hovering: Bool) {
         hoverTask?.cancel()
+
+        if hovering {
+            startHoverClickMonitor()
+        } else {
+            stopHoverClickMonitor()
+        }
 
         if hovering {
             withAnimation(.bouncy.speed(1.2)) {

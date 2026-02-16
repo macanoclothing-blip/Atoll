@@ -79,6 +79,12 @@ struct DynamicNotchApp: App {
     }
 }
 
+final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+}
+
 extension AppDelegate {
     static var shared: AppDelegate? {
         NSApplication.shared.delegate as? AppDelegate
@@ -223,7 +229,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         window.animationBehavior = .none
         
-        window.contentView = NSHostingView(
+        window.contentView = FirstMouseHostingView(
             rootView: ContentView()
                 .environmentObject(viewModel)
                 .environmentObject(webcamManager)

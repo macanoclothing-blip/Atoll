@@ -64,4 +64,5 @@ class DynamicIslandWindow: NSPanel {
     override var canBecomeMain: Bool {
         true
     }
+
 }
