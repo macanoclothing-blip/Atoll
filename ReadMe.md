@@ -39,7 +39,7 @@
 Atoll turns the MacBook notch into a focused command surface for media, system insight, and quick utilities. It stays out of the way until needed, then expands with responsive, native SwiftUI animations.
 
 <p align="center">
-  <img src="https://i.postimg.cc/jjLLH6Gs/3DAB6C3C-FEA1-4C90-ACEE-0BC4469B929C-1-201-a.jpg" alt="Atoll lock screen" width="920">
+  <img src="https://i.postimg.cc/Pf48mttF/Screenshot-2026-03-01-at-8-25-34-PM.png" alt="Atoll lock screen" width="920">
 </p>
 
 
