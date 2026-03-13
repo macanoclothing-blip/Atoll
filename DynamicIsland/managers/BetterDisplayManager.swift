@@ -224,7 +224,7 @@ final class BetterDisplayManager: ObservableObject {
         let category = classifyControlTarget(osd.controlTarget, systemIconID: osd.systemIconID)
         let normalizedValue = normalizeValue(osd.value, maxValue: osd.maxValue)
         let targetScreen = resolveScreen(for: osd.displayID)
-        let isExternalDisplay = isExternal(displayID: osd.displayID)
+        let isExternalDisplay = isExternal(displayID: osd.displayID, resolvedScreen: targetScreen)
 
         NSLog("📺 BetterDisplay OSD: target=\(osd.controlTarget ?? "nil") displayID=\(osd.displayID.map(String.init) ?? "nil") resolvedScreen=\(targetScreen?.localizedName ?? "nil") isExternal=\(isExternalDisplay) value=\(osd.value ?? -1)")
 
@@ -266,7 +266,8 @@ final class BetterDisplayManager: ObservableObject {
                 status: true,
                 type: .volume,
                 value: value,
-                icon: ""
+                icon: "",
+                onScreen: targetScreen
             )
         }
     }
@@ -289,7 +290,8 @@ final class BetterDisplayManager: ObservableObject {
                 status: true,
                 type: .brightness,
                 value: value,
-                icon: icon
+                icon: icon,
+                onScreen: targetScreen
             )
         }
     }
@@ -302,28 +304,50 @@ final class BetterDisplayManager: ObservableObject {
             NSLog("📺 BetterDisplay resolveScreen: displayID is nil, falling back to all screens")
             return nil
         }
+
+        if let directDisplayID = UInt32(exactly: displayID),
+           let matchedScreen = NSScreen.screens.first(where: { screenNumber(for: $0) == directDisplayID }) {
+            return matchedScreen
+        }
+
+        // Fallback for payloads that use 1-based display indexes (1, 2, ...)
+        if displayID > 0 {
+            let index = displayID - 1
+            if NSScreen.screens.indices.contains(index) {
+                let fallback = NSScreen.screens[index]
+                NSLog("📺 BetterDisplay resolveScreen: displayID=\(displayID) resolved via index fallback to '\(fallback.localizedName)'")
+                return fallback
+            }
+        }
+
         let target = UInt32(displayID)
         let availableScreens = NSScreen.screens.map { screen -> (String, UInt32) in
             let num = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
             return (screen.localizedName, num)
         }
         NSLog("📺 BetterDisplay resolveScreen: looking for displayID=\(displayID) (UInt32=\(target)) among screens: \(availableScreens)")
-        let matched = NSScreen.screens.first { screen in
-            guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-                return false
-            }
-            return screenNumber.uint32Value == target
-        }
-        if matched == nil {
-            NSLog("📺 BetterDisplay resolveScreen: no match found for displayID=\(displayID), HUD will show on all screens")
-        }
-        return matched
+        NSLog("📺 BetterDisplay resolveScreen: no match found for displayID=\(displayID), HUD will show on all screens")
+        return nil
     }
 
     /// Whether the given displayID refers to an external (non-built-in) display.
-    private func isExternal(displayID: Int?) -> Bool {
-        guard let displayID else { return false }
-        return CGDisplayIsBuiltin(UInt32(displayID)) == 0
+    private func isExternal(displayID: Int?, resolvedScreen: NSScreen?) -> Bool {
+        if let resolvedScreen,
+           let resolvedDisplayID = screenNumber(for: resolvedScreen) {
+            return CGDisplayIsBuiltin(resolvedDisplayID) == 0
+        }
+        guard let displayID,
+              let displayIDValue = UInt32(exactly: displayID) else {
+            return false
+        }
+        return CGDisplayIsBuiltin(displayIDValue) == 0
+    }
+
+    private func screenNumber(for screen: NSScreen) -> UInt32? {
+        guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
+            return nil
+        }
+        return screenNumber.uint32Value
     }
 
     private func classifyControlTarget(_ target: String?, systemIconID: Int?) -> BetterDisplayControlCategory {

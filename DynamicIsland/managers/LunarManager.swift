@@ -291,7 +291,7 @@ final class LunarManager: ObservableObject {
 
     private func routeToHUD(_ data: LunarDisplayData) {
         let targetScreen = resolveScreen(for: data.display)
-        let isExternal = isExternalDisplay(data.display)
+        let isExternal = isExternalDisplay(data.display, resolvedScreen: targetScreen)
 
         // Nits-only events are informational (no user-facing HUD needed).
         let hasActionableChange = data.brightness != nil || data.contrast != nil || data.volume != nil || data.mute != nil
@@ -342,7 +342,8 @@ final class LunarManager: ObservableObject {
                 status: true,
                 type: .volume,
                 value: value,
-                icon: ""
+                icon: "",
+                onScreen: targetScreen
             )
         }
     }
@@ -364,7 +365,8 @@ final class LunarManager: ObservableObject {
                 status: true,
                 type: .brightness,
                 value: value,
-                icon: icon
+                icon: icon,
+                onScreen: targetScreen
             )
         }
     }
@@ -378,16 +380,42 @@ final class LunarManager: ObservableObject {
 
     /// Resolve a Lunar display ID (CGDirectDisplayID) to the matching NSScreen.
     private func resolveScreen(for displayID: Int) -> NSScreen? {
-        let target = UInt32(displayID)
-        return NSScreen.screens.first { screen in
-            guard let num = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
-            return num.uint32Value == target
+        if let directDisplayID = UInt32(exactly: displayID),
+           let matchedScreen = NSScreen.screens.first(where: { screenNumber(for: $0) == directDisplayID }) {
+            return matchedScreen
         }
+
+        // Fallback for integrations that send 1-based display indexes (e.g. 1, 2)
+        if displayID > 0 {
+            let index = displayID - 1
+            if NSScreen.screens.indices.contains(index) {
+                let fallback = NSScreen.screens[index]
+                NSLog("🌙 Lunar: display=\(displayID) resolved via index fallback to '\(fallback.localizedName)'")
+                return fallback
+            }
+        }
+
+        NSLog("🌙 Lunar: unable to resolve display=\(displayID), HUD will show on all screens")
+        return nil
     }
 
     /// Whether the given displayID refers to an external (non-built-in) display.
-    private func isExternalDisplay(_ displayID: Int) -> Bool {
-        CGDisplayIsBuiltin(UInt32(displayID)) == 0
+    private func isExternalDisplay(_ displayID: Int, resolvedScreen: NSScreen?) -> Bool {
+        if let resolvedScreen,
+           let resolvedDisplayID = screenNumber(for: resolvedScreen) {
+            return CGDisplayIsBuiltin(resolvedDisplayID) == 0
+        }
+        if let displayIDValue = UInt32(exactly: displayID) {
+            return CGDisplayIsBuiltin(displayIDValue) == 0
+        }
+        return false
+    }
+
+    private func screenNumber(for screen: NSScreen) -> UInt32? {
+        guard let num = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
+            return nil
+        }
+        return num.uint32Value
     }
 
     // MARK: - Reconnection
