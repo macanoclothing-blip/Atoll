@@ -35,6 +35,18 @@ final class ExtensionRPCService {
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
 
+    // Keys whose values represent Swift enums that use {"type":...} in client format.
+    // These need to be transformed to Swift Codable format: {"caseName": {params}}.
+    private static let enumKeys: Set<String> = [
+        "leadingIcon", "trailingContent", "progressIndicator",
+        "badgeIcon", "leadingContent", "icon", "tint"
+    ]
+
+    // Enum-typed fields that can appear inside arrays (like content elements)
+    private static let contentElementTypeFields: Set<String> = [
+        "text", "icon", "progress", "graph", "gauge", "spacer", "divider", "webView"
+    ]
+
     init(bundleIdentifier: String, server: ExtensionRPCServer) {
         self.bundleIdentifier = bundleIdentifier
         self.server = server
@@ -146,7 +158,8 @@ final class ExtensionRPCService {
         }
 
         do {
-            let descriptor = try decoder.decode(AtollLiveActivityDescriptor.self, from: descriptorData)
+            let transformed = Self.transformClientJSON(descriptorData)
+            let descriptor = try decoder.decode(AtollLiveActivityDescriptor.self, from: transformed)
             try ExtensionDescriptorValidator.validate(descriptor)
             try liveActivityManager.present(descriptor: descriptor, bundleIdentifier: descriptor.bundleIdentifier)
             logDiagnostics("RPC: Presented live activity \(descriptor.id) for \(descriptor.bundleIdentifier)")
@@ -154,6 +167,8 @@ final class ExtensionRPCService {
         } catch let error as ExtensionValidationError {
             return errorResponse(from: error, id: id)
         } catch {
+            logDiagnostics("RPC: Decode error for presentLiveActivity: \(error)")
+            logDiagnostics("RPC: Raw payload: \(String(data: descriptorData, encoding: .utf8) ?? "<binary>")")
             return errorResponse(code: RPCErrorCode.internalError, message: error.localizedDescription, id: id)
         }
     }
@@ -164,13 +179,15 @@ final class ExtensionRPCService {
         }
 
         do {
-            let descriptor = try decoder.decode(AtollLiveActivityDescriptor.self, from: descriptorData)
+            let transformed = Self.transformClientJSON(descriptorData)
+            let descriptor = try decoder.decode(AtollLiveActivityDescriptor.self, from: transformed)
             try liveActivityManager.update(descriptor: descriptor, bundleIdentifier: descriptor.bundleIdentifier)
             logDiagnostics("RPC: Updated live activity \(descriptor.id) for \(descriptor.bundleIdentifier)")
             return RPCSuccessResponse(result: ["success": .bool(true)], id: id)
         } catch let error as ExtensionValidationError {
             return errorResponse(from: error, id: id)
         } catch {
+            logDiagnostics("RPC: Decode error for updateLiveActivity: \(error)")
             return errorResponse(code: RPCErrorCode.internalError, message: error.localizedDescription, id: id)
         }
     }
@@ -193,7 +210,8 @@ final class ExtensionRPCService {
         }
 
         do {
-            let descriptor = try decoder.decode(AtollLockScreenWidgetDescriptor.self, from: descriptorData)
+            let transformed = Self.transformClientJSON(descriptorData)
+            let descriptor = try decoder.decode(AtollLockScreenWidgetDescriptor.self, from: transformed)
             try ExtensionDescriptorValidator.validate(descriptor)
             try widgetManager.present(descriptor: descriptor, bundleIdentifier: descriptor.bundleIdentifier)
             logDiagnostics("RPC: Presented widget \(descriptor.id) for \(descriptor.bundleIdentifier)")
@@ -201,6 +219,8 @@ final class ExtensionRPCService {
         } catch let error as ExtensionValidationError {
             return errorResponse(from: error, id: id)
         } catch {
+            logDiagnostics("RPC: Decode error for presentWidget: \(error)")
+            logDiagnostics("RPC: Raw payload: \(String(data: descriptorData, encoding: .utf8) ?? "<binary>")")
             return errorResponse(code: RPCErrorCode.internalError, message: error.localizedDescription, id: id)
         }
     }
@@ -211,13 +231,15 @@ final class ExtensionRPCService {
         }
 
         do {
-            let descriptor = try decoder.decode(AtollLockScreenWidgetDescriptor.self, from: descriptorData)
+            let transformed = Self.transformClientJSON(descriptorData)
+            let descriptor = try decoder.decode(AtollLockScreenWidgetDescriptor.self, from: transformed)
             try widgetManager.update(descriptor: descriptor, bundleIdentifier: descriptor.bundleIdentifier)
             logDiagnostics("RPC: Updated widget \(descriptor.id) for \(descriptor.bundleIdentifier)")
             return RPCSuccessResponse(result: ["success": .bool(true)], id: id)
         } catch let error as ExtensionValidationError {
             return errorResponse(from: error, id: id)
         } catch {
+            logDiagnostics("RPC: Decode error for updateWidget: \(error)")
             return errorResponse(code: RPCErrorCode.internalError, message: error.localizedDescription, id: id)
         }
     }
@@ -240,7 +262,8 @@ final class ExtensionRPCService {
         }
 
         do {
-            let descriptor = try decoder.decode(AtollNotchExperienceDescriptor.self, from: descriptorData)
+            let transformed = Self.transformClientJSON(descriptorData)
+            let descriptor = try decoder.decode(AtollNotchExperienceDescriptor.self, from: transformed)
             try ExtensionDescriptorValidator.validate(descriptor)
             try notchManager.present(descriptor: descriptor, bundleIdentifier: descriptor.bundleIdentifier)
             logDiagnostics("RPC: Presented notch experience \(descriptor.id) for \(descriptor.bundleIdentifier)")
@@ -248,6 +271,8 @@ final class ExtensionRPCService {
         } catch let error as ExtensionValidationError {
             return errorResponse(from: error, id: id)
         } catch {
+            logDiagnostics("RPC: Decode error for presentNotchExperience: \(error)")
+            logDiagnostics("RPC: Raw payload: \(String(data: descriptorData, encoding: .utf8) ?? "<binary>")")
             return errorResponse(code: RPCErrorCode.internalError, message: error.localizedDescription, id: id)
         }
     }
@@ -258,13 +283,15 @@ final class ExtensionRPCService {
         }
 
         do {
-            let descriptor = try decoder.decode(AtollNotchExperienceDescriptor.self, from: descriptorData)
+            let transformed = Self.transformClientJSON(descriptorData)
+            let descriptor = try decoder.decode(AtollNotchExperienceDescriptor.self, from: transformed)
             try notchManager.update(descriptor: descriptor, bundleIdentifier: descriptor.bundleIdentifier)
             logDiagnostics("RPC: Updated notch experience \(descriptor.id) for \(descriptor.bundleIdentifier)")
             return RPCSuccessResponse(result: ["success": .bool(true)], id: id)
         } catch let error as ExtensionValidationError {
             return errorResponse(from: error, id: id)
         } catch {
+            logDiagnostics("RPC: Decode error for updateNotchExperience: \(error)")
             return errorResponse(code: RPCErrorCode.internalError, message: error.localizedDescription, id: id)
         }
     }
@@ -308,5 +335,120 @@ final class ExtensionRPCService {
     private func logDiagnostics(_ message: String) {
         guard Defaults[.extensionDiagnosticsLoggingEnabled] else { return }
         Logger.log(message, category: .extensions)
+    }
+
+    // MARK: - Client JSON Transformation
+
+    /// Converts client wire format to Swift Codable format for enum types.
+    ///
+    /// Client sends: `{ "type": "symbol", "name": "timer", "size": 16 }`
+    /// Swift expects: `{ "symbol": { "name": "timer", "size": 16 } }`
+    ///
+    /// For enums with unnamed parameters (e.g., `case text(String, font:, color:)`):
+    /// Client sends: `{ "type": "text", "text": "LIVE", "font": {...} }`
+    /// Swift expects: `{ "text": { "_0": "LIVE", "font": {...} } }`
+    static func transformClientJSON(_ data: Data) -> Data {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return data
+        }
+        let transformed = transformObject(json)
+        return (try? JSONSerialization.data(withJSONObject: transformed)) ?? data
+    }
+
+    private static func transformObject(_ obj: [String: Any]) -> [String: Any] {
+        var result: [String: Any] = [:]
+
+        for (key, value) in obj {
+            if let dict = value as? [String: Any] {
+                if enumKeys.contains(key), let typeName = dict["type"] as? String {
+                    // Transform: { "type": "symbol", ... } → { "symbol": { ... } }
+                    result[key] = transformEnumValue(dict, typeName: typeName)
+                } else {
+                    result[key] = transformObject(dict)
+                }
+            } else if let arr = value as? [[String: Any]] {
+                // Arrays like "content", "elements", "sections"
+                result[key] = arr.map { item in
+                    if let typeName = item["type"] as? String,
+                       (key == "content" || key == "elements") {
+                        return transformEnumValue(item, typeName: typeName)
+                    }
+                    return transformObject(item)
+                }
+            } else {
+                result[key] = value
+            }
+        }
+
+        return result
+    }
+
+    /// Transforms `{ "type": "caseName", ...params }` → `{ "caseName": { ...params } }`.
+    /// Handles special cases where Swift enum cases have unnamed first parameters:
+    /// - `text` / `marquee`: `text` field → `_0`
+    /// - `icon`: `icon` field → `_0` (AtollIconDescriptor)
+    /// - `progress`: `indicator` field → `_0` (AtollProgressIndicator)
+    /// - `webView`: `content` field → `_0` (AtollWidgetWebContentDescriptor)
+    /// - `animation`: `data` field → `_0` (Data)
+    private static func transformEnumValue(_ dict: [String: Any], typeName: String) -> [String: Any] {
+        var inner: [String: Any] = [:]
+
+        for (k, v) in dict where k != "type" {
+            if let nestedDict = v as? [String: Any] {
+                // Check if this nested dict is an enum-typed field
+                if (enumKeys.contains(k) || k == "indicator"),
+                   let nestedType = nestedDict["type"] as? String {
+                    inner[k] = transformEnumValue(nestedDict, typeName: nestedType)
+                } else {
+                    inner[k] = transformObject(nestedDict)
+                }
+            } else if let nestedArr = v as? [[String: Any]] {
+                inner[k] = nestedArr.map { item in
+                    if let t = item["type"] as? String {
+                        return transformEnumValue(item, typeName: t)
+                    }
+                    return transformObject(item)
+                }
+            } else {
+                inner[k] = v
+            }
+        }
+
+        // Handle unnamed first parameter for specific enum cases.
+        // Swift's auto-synthesized Codable encodes unnamed associated values as `_0`, `_1`, etc.
+        switch typeName {
+        case "text":
+            // AtollTrailingContent.text(String, ...) AND AtollWidgetContentElement.text(String, ...)
+            if let textValue = inner.removeValue(forKey: "text") {
+                inner["_0"] = textValue
+            }
+        case "marquee":
+            // AtollTrailingContent.marquee(String, ...)
+            if let textValue = inner.removeValue(forKey: "text") {
+                inner["_0"] = textValue
+            }
+        case "icon":
+            // AtollWidgetContentElement.icon(AtollIconDescriptor, tint:)
+            if let iconValue = inner.removeValue(forKey: "icon") {
+                inner["_0"] = iconValue
+            }
+        case "progress":
+            // AtollWidgetContentElement.progress(AtollProgressIndicator, value:, color:)
+            if let indicatorValue = inner.removeValue(forKey: "indicator") {
+                inner["_0"] = indicatorValue
+            }
+        case "webView":
+            // AtollWidgetContentElement.webView(AtollWidgetWebContentDescriptor)
+            if let contentValue = inner.removeValue(forKey: "content") {
+                inner["_0"] = contentValue
+            }
+        case "animation":
+            // AtollTrailingContent.animation(data:, size:) — data is named but let's be safe
+            break
+        default:
+            break
+        }
+
+        return [typeName: inner]
     }
 }
