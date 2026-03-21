@@ -1058,7 +1058,7 @@ struct MinimalisticAlbumArtView: View {
             .background(
                 Image(nsImage: musicManager.albumArt)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: .fit)
             )
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -1077,7 +1077,7 @@ struct MinimalisticAlbumArtView: View {
                 .background(
                     Image(nsImage: musicManager.albumArt)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
+                        .aspectRatio(contentMode: .fit)
                 )
                 .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: 12))

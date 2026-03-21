@@ -84,6 +84,7 @@ struct sneakPeek {
     var subtitle: String = ""
     var accentColor: Color?
     var styleOverride: SneakPeekStyle? = nil
+    var targetScreenName: String? = nil
 }
 
 enum BrowserType {
@@ -323,7 +324,8 @@ class DynamicIslandViewCoordinator: ObservableObject {
         title: String = "",
         subtitle: String = "",
         accentColor: Color? = nil,
-        styleOverride: SneakPeekStyle? = nil
+        styleOverride: SneakPeekStyle? = nil,
+        onScreen targetScreen: NSScreen? = nil
     ) {
         let resolvedDuration: TimeInterval
         switch type {
@@ -360,6 +362,7 @@ class DynamicIslandViewCoordinator: ObservableObject {
                 self.sneakPeek.subtitle = subtitle
                 self.sneakPeek.accentColor = accentColor
                 self.sneakPeek.styleOverride = styleOverride
+                self.sneakPeek.targetScreenName = targetScreen?.localizedName
             }
         }
     }

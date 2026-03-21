@@ -433,7 +433,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_ASSET_PATHS = "\"DynamicIsland/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 9Y64TRM77N;
@@ -464,7 +464,7 @@
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Need for Calendar Mode";
 				INFOPLIST_KEY_NSCameraUsageDescription = "We need your camera for Mirror mode";
 				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Atoll needs access to save screenshots to your desktop.";
-				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Atoll needs access to save and read AI assistant files.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Atoll needs access to save and read shelf dragged files.";
 				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Atoll needs access to read files in the downloads folder.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Atoll uses your location to display accurate lock screen weather.";
@@ -475,7 +475,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.Ebullioscopic.Atoll.dev;
 				PRODUCT_NAME = Atoll;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -505,7 +505,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_ASSET_PATHS = "\"DynamicIsland/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 9Y64TRM77N;
@@ -536,7 +536,7 @@
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Need for Calendar Mode";
 				INFOPLIST_KEY_NSCameraUsageDescription = "We need your camera for Mirror mode";
 				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Atoll needs access to save screenshots to your desktop.";
-				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Atoll needs access to save and read AI assistant files.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Atoll needs access to save and read shelf dragged files.";
 				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Atoll needs access to read files in the downloads folder.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Atoll uses your location to display accurate lock screen weather.";
@@ -547,7 +547,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.Ebullioscopic.Atoll;
 				PRODUCT_NAME = Atoll;
 				PROVISIONING_PROFILE_SPECIFIER = "";

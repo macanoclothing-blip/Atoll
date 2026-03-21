@@ -181,15 +181,28 @@ class TerminalManager: ObservableObject {
         terminalTitle = title
     }
 
+    // MARK: - Font Resolution
+
+    /// Resolves the terminal font from the user's chosen family and size.
+    ///
+    /// - If `family` is empty, returns the system monospaced font.
+    /// - Otherwise tries `NSFont(name:size:)` and falls back to system monospaced
+    ///   when the name is invalid or the font is not installed.
+    private func resolveFont(family: String, size: CGFloat) -> NSFont {
+        if !family.isEmpty, let custom = NSFont(name: family, size: size) {
+            return custom
+        }
+        return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+    }
+
     // MARK: - Settings Application
 
     /// Applies all persisted settings to a terminal view at creation time.
     private func applyAllSettings(to view: LocalProcessTerminalView) {
         // Font
         let fontSize = CGFloat(Defaults[.terminalFontSize])
-        if let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular) as NSFont? {
-            view.font = font
-        }
+        let fontFamily = Defaults[.terminalFontFamily]
+        view.font = resolveFont(family: fontFamily, size: fontSize)
 
         // Opacity
         view.layer?.opacity = Float(Defaults[.terminalOpacity])
@@ -220,9 +233,15 @@ class TerminalManager: ObservableObject {
     /// Updates font size on the live terminal view.
     func applyFontSize(_ size: Double) {
         guard let view = terminalView else { return }
-        if let font = NSFont.monospacedSystemFont(ofSize: CGFloat(size), weight: .regular) as NSFont? {
-            view.font = font
-        }
+        let fontFamily = Defaults[.terminalFontFamily]
+        view.font = resolveFont(family: fontFamily, size: CGFloat(size))
+    }
+
+    /// Updates font family on the live terminal view.
+    func applyFontFamily(_ family: String) {
+        guard let view = terminalView else { return }
+        let fontSize = CGFloat(Defaults[.terminalFontSize])
+        view.font = resolveFont(family: family, size: fontSize)
     }
 
     /// Updates opacity on the live terminal view.

@@ -181,8 +181,22 @@ class SystemHUDManager {
             )
         }.store(in: &cancellables)
 
-        // When BetterDisplay integration toggled, restart observer to update Cmd+Brightness key interception
-        Defaults.publisher(.enableBetterDisplayIntegration, options: []).sink { [weak self] _ in
+        // Restart observer when third-party DDC integration state changes.
+        Defaults.publisher(.enableThirdPartyDDCIntegration, options: []).sink { [weak self] _ in
+            guard let self = self, self.isSetupComplete else { return }
+            Task { @MainActor in
+                await self.startSystemObserver()
+            }
+        }.store(in: &cancellables)
+
+        Defaults.publisher(.thirdPartyDDCProvider, options: []).sink { [weak self] _ in
+            guard let self = self, self.isSetupComplete else { return }
+            Task { @MainActor in
+                await self.startSystemObserver()
+            }
+        }.store(in: &cancellables)
+
+        Defaults.publisher(.enableExternalVolumeControlListener, options: []).sink { [weak self] _ in
             guard let self = self, self.isSetupComplete else { return }
             Task { @MainActor in
                 await self.startSystemObserver()
@@ -220,7 +234,7 @@ class SystemHUDManager {
         }
     }
     
-    /// Resolves the effective control flags, applying BetterDisplay overrides.
+    /// Resolves the effective control flags, applying third-party DDC overrides.
     private func resolvedControlFlags() -> (volume: Bool, brightness: Bool, backlight: Bool) {
         var volumeEnabled: Bool
         var brightnessEnabled: Bool
@@ -240,11 +254,16 @@ class SystemHUDManager {
             keyboardBacklightEnabled = Defaults[.enableKeyboardBacklightHUD]
         }
 
-        // When BetterDisplay integration is on, stop intercepting brightness and
-        // Cmd+Brightness keys so BetterDisplay receives them and sends OSD notifications.
-        if Defaults[.enableBetterDisplayIntegration] {
+        // When third-party DDC integration is on, stop intercepting brightness and
+        // Cmd+Brightness keys so the external app receives them and sends DDC/OSD events.
+        if Defaults[.enableThirdPartyDDCIntegration] {
             brightnessEnabled = false
             keyboardBacklightEnabled = false
+
+            // Optional: route volume exclusively from the selected external provider.
+            if Defaults[.enableExternalVolumeControlListener] {
+                volumeEnabled = false
+            }
         }
 
         return (volumeEnabled, brightnessEnabled, keyboardBacklightEnabled)
@@ -273,7 +292,7 @@ class SystemHUDManager {
         // Force disable system HUD to ensure no duplicates
         SystemOSDManager.disableSystemHUD()
         
-        print("System observer started (HUD: \(Defaults[.enableSystemHUD]), OSD: \(Defaults[.enableCustomOSD]), Vertical: \(Defaults[.enableVerticalHUD]), BD: \(Defaults[.enableBetterDisplayIntegration]))")
+        print("System observer started (HUD: \(Defaults[.enableSystemHUD]), OSD: \(Defaults[.enableCustomOSD]), Vertical: \(Defaults[.enableVerticalHUD]), ThirdPartyDDC: \(Defaults[.enableThirdPartyDDCIntegration]), Provider: \(Defaults[.thirdPartyDDCProvider].displayName), ExternalVolumeListener: \(Defaults[.enableExternalVolumeControlListener]))")
         isSystemOperationInProgress = false
     }
     

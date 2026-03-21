@@ -261,7 +261,16 @@ struct StandaloneCalendarView: View {
     @Default(.hideCompletedReminders) private var hideCompletedReminders
 
     private let calendar = Calendar.current
-    private let weekdaySymbols = Calendar.current.shortWeekdaySymbols
+
+    private var weekdaySymbols: [String] {
+        let symbols = calendar.veryShortStandaloneWeekdaySymbols
+        guard !symbols.isEmpty else { return symbols }
+
+        let firstWeekdayIndex = max(0, min(symbols.count - 1, calendar.firstWeekday - 1))
+        var ordered = Array(symbols[firstWeekdayIndex...])
+        ordered.append(contentsOf: symbols[..<firstWeekdayIndex])
+        return ordered
+    }
 
     private var monthTitle: String {
         displayedMonth.formatted(.dateTime.month(.wide))
@@ -397,7 +406,7 @@ struct StandaloneCalendarView: View {
                 ScrollViewReader { proxy in
                     VStack(spacing: 6) {
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 14), spacing: 6), count: 7), spacing: 6) {
-                            ForEach(weekdaySymbols, id: \.self) { symbol in
+                            ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                                 Text(symbol.prefix(1))
                                     .font(.caption2)
                                     .fontWeight(.semibold)

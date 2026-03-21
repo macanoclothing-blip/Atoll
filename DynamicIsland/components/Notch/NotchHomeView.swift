@@ -36,8 +36,6 @@ struct MusicPlayerView: View {
                 .padding(.all, 5)
             MusicControlsView()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .drawingGroup()
-                .compositingGroup()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -58,8 +56,13 @@ struct AlbumArtView: View {
     }
 
     private var albumArtBackground: some View {
-        Image(nsImage: musicManager.albumArt)
-            .resizable()
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .background(
+                Image(nsImage: musicManager.albumArt)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            )
             .clipped()
             .clipShape(
                 RoundedRectangle(
@@ -67,7 +70,6 @@ struct AlbumArtView: View {
                         ? MusicPlayerImageSizes.cornerRadiusInset.opened
                         : MusicPlayerImageSizes.cornerRadiusInset.closed)
             )
-            .aspectRatio(1, contentMode: .fit)
             .scaleEffect(x: 1.3, y: 1.4)
             .rotationEffect(.degrees(92))
             .blur(radius: 40)
@@ -102,9 +104,13 @@ struct AlbumArtView: View {
     }
 
     private var albumArtImage: some View {
-        Image(nsImage: musicManager.albumArt)
-            .resizable()
+        Color.clear
             .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                Image(nsImage: musicManager.albumArt)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            }
             .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
         .clipped()
         .clipShape(
@@ -529,11 +535,12 @@ struct NotchHomeView: View {
     @ObservedObject private var extensionNotchExperienceManager = ExtensionNotchExperienceManager.shared
     @ObservedObject private var musicManager = MusicManager.shared
     @Default(.showStandardMediaControls) private var showStandardMediaControls
+    @Default(.autoHideInactiveNotchMediaPlayer) private var autoHideInactiveNotchMediaPlayer
     let albumArtNamespace: Namespace.ID
 
     /// Whether the music player should actively display (enabled AND has real content).
     private var shouldShowMusicPlayer: Bool {
-        showStandardMediaControls && musicManager.hasActiveSession
+        showStandardMediaControls && (!autoHideInactiveNotchMediaPlayer || musicManager.hasActiveSession)
     }
     
     var body: some View {

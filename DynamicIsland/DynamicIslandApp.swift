@@ -111,6 +111,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let mediaControlsStateCoordinator = MediaControlsStateCoordinator.shared
     let systemTimerBridge = SystemTimerBridge.shared
     let extensionXPCServiceHost = ExtensionXPCServiceHost.shared
+    let extensionRPCServer = ExtensionRPCServer.shared
     var closeNotchWorkItem: DispatchWorkItem?
     private var previousScreens: [NSScreen]?
     private var onboardingWindowController: NSWindowController?
@@ -155,10 +156,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationWillTerminate(_ notification: Notification) {
+        let userInfo: [String: Any] = [
+            AtollDistributedNotifications.UserInfoKey.sourcePID: NSNumber(value: ProcessInfo.processInfo.processIdentifier)
+        ]
+        DistributedNotificationCenter.default().postNotificationName(
+            AtollDistributedNotifications.didBecomeIdle,
+            object: nil,
+            userInfo: userInfo,
+            deliverImmediately: true
+        )
+
         // Cancel any pending window size updates
         windowSizeUpdateWorkItem?.cancel()
         NotificationCenter.default.removeObserver(self)
         extensionXPCServiceHost.stop()
+        extensionRPCServer.stop()
+
+        // Restore Lunar's native OSD if integration was active
+        LunarManager.shared.appWillTerminate()
     }
     
     @objc func onScreenLocked(_: Notification) {
@@ -388,15 +403,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let userInfo: [String: Any] = [
+            AtollDistributedNotifications.UserInfoKey.sourcePID: NSNumber(value: ProcessInfo.processInfo.processIdentifier)
+        ]
+        DistributedNotificationCenter.default().postNotificationName(
+            AtollDistributedNotifications.didBecomeActive,
+            object: nil,
+            userInfo: userInfo,
+            deliverImmediately: true
+        )
+
         LockScreenLiveActivityWindowManager.shared.configure(viewModel: vm)
         LockScreenManager.shared.configure(viewModel: vm)
         extensionXPCServiceHost.start()
+        extensionRPCServer.start()
         
         // Migrate legacy progress bar settings
         Defaults.Keys.migrateProgressBarStyle()
         Defaults.Keys.migrateMusicAuxControls()
         Defaults.Keys.migrateMusicControlSlots()
         Defaults.Keys.migrateCapsLockTintMode()
+        Defaults.Keys.migrateThirdPartyDDCIntegration()
+
+        Defaults.publisher(.enableThirdPartyDDCIntegration, options: [])
+            .sink { _ in
+                Defaults.Keys.syncLegacyThirdPartyDDCKeys()
+            }
+            .store(in: &cancellables)
+
+        Defaults.publisher(.thirdPartyDDCProvider, options: [])
+            .sink { _ in
+                Defaults.Keys.syncLegacyThirdPartyDDCKeys()
+            }
+            .store(in: &cancellables)
         
         // Initialize idle animations (load bundled + built-in face)
         idleAnimationManager.initializeDefaultAnimations()
@@ -415,6 +454,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Setup BetterDisplay integration
         BetterDisplayManager.shared.configure(coordinator: coordinator)
+
+        // Setup Lunar integration
+        LunarManager.shared.configure(coordinator: coordinator)
         
         // Setup ScreenRecording Manager
         if Defaults[.enableScreenRecordingDetection] {

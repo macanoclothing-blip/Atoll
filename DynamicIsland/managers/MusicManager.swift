@@ -630,15 +630,19 @@ class MusicManager: ObservableObject {
     
     func togglePlay() {
         guard let controller = activeController else { return }
+        let targetState = !isPlaying
 
         Task {
             await MainActor.run {
-                let newState = !isPlaying
-                pendingOptimisticPlayState = newState
-                applyPlayState(newState, animation: .smooth(duration: 0.18))
+                pendingOptimisticPlayState = targetState
+                applyPlayState(targetState, animation: .smooth(duration: 0.18))
             }
 
-            await controller.togglePlay()
+            if targetState {
+                await controller.play()
+            } else {
+                await controller.pause()
+            }
         }
     }
 

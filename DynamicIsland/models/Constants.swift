@@ -128,13 +128,11 @@ enum AnimationLoopMode: String, Codable, CaseIterable {
 enum AnimationSource: Codable, Hashable, Equatable {
     case lottieFile(URL)        // Local file (in app support or bundle)
     case lottieURL(URL)         // Remote URL
-    case builtInFace            // Original MinimalFaceFeatures
     
     var displayType: String {
         switch self {
         case .lottieFile: return "Local"
         case .lottieURL: return "Remote"
-        case .builtInFace: return "Built-in"
         }
     }
 }
@@ -312,6 +310,22 @@ enum ColorPickerDisplayMode: String, CaseIterable, Codable, Defaults.Serializabl
         switch self {
         case .popover: return "Shows color picker as a dropdown attached to the color picker button"
         case .panel: return "Shows color picker in a floating panel near the notch"
+        }
+    }
+}
+
+enum ThirdPartyDDCProvider: String, CaseIterable, Codable, Defaults.Serializable, Identifiable {
+    case betterDisplay
+    case lunar
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .betterDisplay:
+            return "BetterDisplay"
+        case .lunar:
+            return "Lunar"
         }
     }
 }
@@ -774,6 +788,7 @@ extension Defaults.Keys {
     static let musicSkipBehavior = Key<MusicSkipBehavior>("musicSkipBehavior", default: .track)
     static let musicControlWindowEnabled = Key<Bool>("musicControlWindowEnabled", default: false)
     static let showStandardMediaControls = Key<Bool>("showStandardMediaControls", default: true)
+    static let autoHideInactiveNotchMediaPlayer = Key<Bool>("autoHideInactiveNotchMediaPlayer", default: true)
     static let cachedMusicLiveActivityPreference = Key<Bool?>("cachedMusicLiveActivityPreference", default: nil)
     static let cachedLockScreenMediaWidgetPreference = Key<Bool?>("cachedLockScreenMediaWidgetPreference", default: nil)
     static let cachedMusicControlWindowPreference = Key<Bool?>("cachedMusicControlWindowPreference", default: nil)
@@ -915,6 +930,7 @@ extension Defaults.Keys {
     // MARK: Terminal Feature
     static let enableTerminalFeature = Key<Bool>("enableTerminalFeature", default: false)
     static let terminalShellPath = Key<String>("terminalShellPath", default: "/bin/zsh")
+    static let terminalFontFamily = Key<String>("terminalFontFamily", default: "")
     static let terminalFontSize = Key<Double>("terminalFontSize", default: 12.0)
     static let terminalOpacity = Key<Double>("terminalOpacity", default: 1.0)
     static let terminalMaxHeightFraction = Key<Double>("terminalMaxHeightFraction", default: 0.4)
@@ -1027,8 +1043,15 @@ extension Defaults.Keys {
     static let circularHUDStrokeWidth = Key<CGFloat>("circularHUDStrokeWidth", default: 4)
     static let circularHUDUseAccentColor = Key<Bool>("circularHUDUseAccentColor", default: true)
 
-    // MARK: BetterDisplay Integration
+    // MARK: Third-Party DDC Integration
+    static let enableThirdPartyDDCIntegration = Key<Bool>("enableThirdPartyDDCIntegration", default: false)
+    static let thirdPartyDDCProvider = Key<ThirdPartyDDCProvider>("thirdPartyDDCProvider", default: .betterDisplay)
+    static let enableExternalVolumeControlListener = Key<Bool>("enableExternalVolumeControlListener", default: false)
+    static let didMigrateThirdPartyDDCIntegration = Key<Bool>("didMigrateThirdPartyDDCIntegration", default: false)
+
+    // Legacy keys retained for migration/backward compatibility
     static let enableBetterDisplayIntegration = Key<Bool>("enableBetterDisplayIntegration", default: false)
+    static let enableLunarIntegration = Key<Bool>("enableLunarIntegration", default: false)
     
     static let hasSeenOSDAlphaWarning = Key<Bool>("hasSeenOSDAlphaWarning", default: false)
     static let enableOSDVolume = Key<Bool>("enableOSDVolume", default: true)
@@ -1150,6 +1173,29 @@ extension Defaults.Keys {
 
         Defaults[.musicControlSlots] = baseLayout.normalized(allowingMediaOutput: allowMediaOutput)
         Defaults[.didMigrateMusicControlSlots] = true
+    }
+
+    static func migrateThirdPartyDDCIntegration() {
+        if Defaults[.didMigrateThirdPartyDDCIntegration] == false {
+            let legacyBetterDisplayEnabled = Defaults[.enableBetterDisplayIntegration]
+            let legacyLunarEnabled = Defaults[.enableLunarIntegration]
+
+            if legacyBetterDisplayEnabled || legacyLunarEnabled {
+                Defaults[.enableThirdPartyDDCIntegration] = true
+                Defaults[.thirdPartyDDCProvider] = (legacyLunarEnabled && !legacyBetterDisplayEnabled) ? .lunar : .betterDisplay
+            }
+
+            Defaults[.didMigrateThirdPartyDDCIntegration] = true
+        }
+
+        syncLegacyThirdPartyDDCKeys()
+    }
+
+    static func syncLegacyThirdPartyDDCKeys() {
+        let isIntegrationEnabled = Defaults[.enableThirdPartyDDCIntegration]
+        let selectedProvider = Defaults[.thirdPartyDDCProvider]
+        Defaults[.enableBetterDisplayIntegration] = isIntegrationEnabled && selectedProvider == .betterDisplay
+        Defaults[.enableLunarIntegration] = isIntegrationEnabled && selectedProvider == .lunar
     }
 
     private static func normalizeMusicAuxControls() {

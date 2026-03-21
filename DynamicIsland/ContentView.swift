@@ -150,6 +150,7 @@ struct ContentView: View {
     @State private var hoverClickMonitor: Any?
     @State private var hoverClickLocalMonitor: Any?
     @State private var stickyTerminalClickMonitor: Any?
+    @State private var hiddenEdgeHoverPollingTask: Task<Void, Never>?
 
     @State private var gestureProgress: CGFloat = .zero
     @State private var skipGestureActiveDirection: MusicManager.SkipDirection?
@@ -257,22 +258,40 @@ struct ContentView: View {
     /// Whether the current screen should render as a Dynamic Island pill
     /// rather than the standard notch shape. Always false on physical notch screens.
     private var isDynamicIslandMode: Bool {
-        shouldUseDynamicIslandMode(for: vm.screen ?? coordinator.selectedScreen)
+        shouldUseDynamicIslandMode(for: currentScreenName)
+    }
+
+    private var currentScreenName: String {
+        vm.screen ?? coordinator.selectedScreen
     }
 
     /// Whether the current screen lacks a physical notch.
     private var isNonNotchScreen: Bool {
-        let screenName = vm.screen ?? coordinator.selectedScreen
-        guard let screen = NSScreen.screens.first(where: { $0.localizedName == screenName }) else {
+        guard let screen = NSScreen.screens.first(where: { $0.localizedName == currentScreenName }) else {
             return true
         }
         return screen.safeAreaInsets.top <= 0
     }
 
+    /// Whether the global sneak peek is visible on this specific screen.
+    private var isSneakPeekVisibleOnCurrentScreen: Bool {
+        guard coordinator.sneakPeek.show else { return false }
+        guard Defaults[.showOnAllDisplays] else { return true }
+        guard let targetScreenName = coordinator.sneakPeek.targetScreenName else { return true }
+        return currentScreenName == targetScreenName
+    }
+
     /// Whether the notch/island should hide off-screen when closed on a non-notch display.
     /// Temporarily reveals the notch when a sneakPeek HUD (volume, brightness, music, etc.) is active.
     private var shouldHideUntilHover: Bool {
-        hideNonNotchUntilHover && isNonNotchScreen && vm.notchState == .closed && !coordinator.sneakPeek.show
+        hideNonNotchUntilHover && isNonNotchScreen && vm.notchState == .closed && !isSneakPeekVisibleOnCurrentScreen
+    }
+
+    /// Whether the fallback top-edge hover detector should run.
+    /// This is only needed when the notch is fully hidden off-screen and
+    /// regular `.onHover` hit-testing may not trigger reliably.
+    private var shouldUseHiddenEdgeHoverPolling: Bool {
+        shouldHideUntilHover && !lockScreenManager.isLocked
     }
 
     /// Pill shape for Dynamic Island mode with animated corner radius transitions.
@@ -524,6 +543,7 @@ struct ContentView: View {
                 clearMusicControlVisibilityDeadline()
             }
             enqueueMusicControlWindowSync(forceRefresh: true)
+            startHiddenEdgeHoverPolling()
         }
         .onChange(of: vm.notchState) { _, state in
             if state == .open {
@@ -615,6 +635,7 @@ struct ContentView: View {
             hoverTask?.cancel()
             stopHoverClickMonitor()
             removeStickyTerminalClickMonitor()
+            stopHiddenEdgeHoverPolling()
             cancelMusicControlWindowSync()
             hideMusicControlWindow()
             cancelMusicControlVisibilityTimer()
@@ -696,7 +717,7 @@ struct ContentView: View {
                             .frame(width: 76, alignment: .trailing)
                         }
                         .frame(height: vm.effectiveClosedNotchHeight + (isHovering ? 8 : 0), alignment: .center)
-                      } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .timer) && (coordinator.sneakPeek.type != .reminder) && !coordinator.sneakPeek.type.isExtensionPayload && ((coordinator.sneakPeek.type != .volume && coordinator.sneakPeek.type != .brightness && coordinator.sneakPeek.type != .backlight) || vm.notchState == .closed) {
+                      } else if isSneakPeekVisibleOnCurrentScreen && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .timer) && (coordinator.sneakPeek.type != .reminder) && !coordinator.sneakPeek.type.isExtensionPayload && ((coordinator.sneakPeek.type != .volume && coordinator.sneakPeek.type != .brightness && coordinator.sneakPeek.type != .backlight) || vm.notchState == .closed) {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(
                                   coordinator.sneakPeek.type == .capsLock
@@ -743,7 +764,7 @@ struct ContentView: View {
                            Rectangle().fill(.clear).frame(width: vm.closedNotchSize.width - 20, height: vm.effectiveClosedNotchHeight)
                        }
                       
-                      if coordinator.sneakPeek.show {
+                      if isSneakPeekVisibleOnCurrentScreen {
                           if (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .timer) && (coordinator.sneakPeek.type != .reminder) && (coordinator.sneakPeek.type != .capsLock) && !coordinator.sneakPeek.type.isExtensionPayload && !Defaults[.inlineHUD] && ((coordinator.sneakPeek.type != .volume && coordinator.sneakPeek.type != .brightness && coordinator.sneakPeek.type != .backlight) || vm.notchState == .closed) {
                               SystemEventIndicatorModifier(eventType: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, sendEventBack: { _ in
                                   //
@@ -970,7 +991,7 @@ struct ContentView: View {
                     .background(
                         Image(nsImage: musicManager.albumArt)
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .aspectRatio(contentMode: .fit)
                     )
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: MusicPlayerImageSizes.cornerRadiusInset.closed))
@@ -1552,6 +1573,48 @@ struct ContentView: View {
         }
     }
 
+    private func hiddenHoverActivationContainsMouse(_ location: NSPoint = NSEvent.mouseLocation) -> Bool {
+        guard let screen = NSScreen.screens.first(where: { $0.localizedName == currentScreenName }) else {
+            return false
+        }
+
+        let horizontalPadding: CGFloat = 8
+        let activationWidth = vm.closedNotchSize.width + horizontalPadding * 2
+        let activationHeight = max(vm.closedNotchSize.height + zeroHeightHoverPadding, 14)
+        let activationRect = CGRect(
+            x: screen.frame.midX - activationWidth / 2,
+            y: screen.frame.maxY - activationHeight,
+            width: activationWidth,
+            height: activationHeight
+        )
+
+        return activationRect.contains(location)
+    }
+
+    private func startHiddenEdgeHoverPolling() {
+        guard hiddenEdgeHoverPollingTask == nil else { return }
+
+        hiddenEdgeHoverPollingTask = Task { @MainActor in
+            while !Task.isCancelled {
+                if self.shouldUseHiddenEdgeHoverPolling {
+                    let hovering = self.hiddenHoverActivationContainsMouse()
+                    if hovering != self.isHovering {
+                        self.handleHover(hovering)
+                    }
+                }
+
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+
+            self.hiddenEdgeHoverPollingTask = nil
+        }
+    }
+
+    private func stopHiddenEdgeHoverPolling() {
+        hiddenEdgeHoverPollingTask?.cancel()
+        hiddenEdgeHoverPollingTask = nil
+    }
+
     private func startHoverClickMonitor() {
         guard hoverClickMonitor == nil else { return }
 
@@ -1637,7 +1700,7 @@ struct ContentView: View {
             let shouldFocusTimerTab = enableTimerFeature && timerDisplayMode == .tab && timerManager.isTimerActive && !enableMinimalisticUI
 
             guard vm.notchState == .closed,
-                !coordinator.sneakPeek.show,
+                !isSneakPeekVisibleOnCurrentScreen,
                 (Defaults[.openNotchOnHover] || shouldFocusTimerTab) else { return }
 
             hoverTask = Task {
@@ -1647,7 +1710,7 @@ struct ContentView: View {
                 await MainActor.run {
                     guard self.vm.notchState == .closed,
                           self.isHovering,
-                          !self.coordinator.sneakPeek.show else { return }
+                          !self.isSneakPeekVisibleOnCurrentScreen else { return }
 
                     if shouldFocusTimerTab {
                         withAnimation(.smooth) {
@@ -2162,7 +2225,7 @@ struct ContentView: View {
     #endif
     
     private func shouldFixSizeForSneakPeek() -> Bool {
-        guard coordinator.sneakPeek.show else { return false }
+        guard isSneakPeekVisibleOnCurrentScreen else { return false }
         let style = resolvedSneakPeekStyle()
         
         // Check for extension sneak peek

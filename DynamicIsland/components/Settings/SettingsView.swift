@@ -422,8 +422,23 @@ struct SettingsView: View {
     @ViewBuilder
     private func sidebarIcon(for tab: SettingsTab) -> some View {
         RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(tab.tint)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        tab.tint.opacity(1),
+                        tab.tint.opacity(0.7)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
             .frame(width: 26, height: 26)
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 0.7)
+                    .blendMode(.plusLighter)
+            }
+            .shadow(color: tab.tint.opacity(0.35), radius: 2, x: 0, y: 1)
             .overlay {
                 Image(systemName: tab.systemImage)
                     .font(.system(size: 13, weight: .semibold))
@@ -739,13 +754,16 @@ struct SettingsView: View {
             SettingsSearchEntry(tab: .hudAndOSD, title: "Keyboard Backlight OSD", keywords: ["keyboard", "backlight", "osd"], highlightID: SettingsTab.hudAndOSD.highlightID(for: "Keyboard Backlight OSD")),
             SettingsSearchEntry(tab: .hudAndOSD, title: "Material", keywords: ["material", "frosted", "liquid", "glass", "solid", "osd"], highlightID: SettingsTab.hudAndOSD.highlightID(for: "Material")),
             SettingsSearchEntry(tab: .hudAndOSD, title: "Icon & Progress Color", keywords: ["color", "icon", "white", "black", "gray", "osd"], highlightID: SettingsTab.hudAndOSD.highlightID(for: "Icon & Progress Color")),
-            SettingsSearchEntry(tab: .hudAndOSD, title: "BetterDisplay integration", keywords: ["betterdisplay", "external", "display", "brightness", "integration", "third party"], highlightID: SettingsTab.hudAndOSD.highlightID(for: "BetterDisplay integration")),
+            SettingsSearchEntry(tab: .hudAndOSD, title: "Third-party DDC app integration", keywords: ["ddc", "third party", "external", "display", "betterdisplay", "lunar"], highlightID: SettingsTab.hudAndOSD.highlightID(for: "Third-party DDC app integration")),
+            SettingsSearchEntry(tab: .hudAndOSD, title: "Third-party DDC provider", keywords: ["provider", "betterdisplay", "lunar", "integration", "refresh detection"], highlightID: SettingsTab.hudAndOSD.highlightID(for: "Third-party DDC provider")),
+            SettingsSearchEntry(tab: .hudAndOSD, title: "Enable external volume control listener", keywords: ["external volume", "ddc volume", "betterdisplay volume", "lunar volume", "disable native volume"], highlightID: SettingsTab.hudAndOSD.highlightID(for: "Enable external volume control listener")),
 
             // Media
             SettingsSearchEntry(tab: .media, title: "Music Source", keywords: ["media source", "controller"], highlightID: SettingsTab.media.highlightID(for: "Music Source")),
             SettingsSearchEntry(tab: .media, title: "Skip buttons", keywords: ["skip", "controls", "±10"], highlightID: SettingsTab.media.highlightID(for: "Skip buttons")),
             SettingsSearchEntry(tab: .media, title: "Sneak Peek Style", keywords: ["sneak peek", "preview"], highlightID: SettingsTab.media.highlightID(for: "Sneak Peek Style")),
             SettingsSearchEntry(tab: .media, title: "Enable lyrics", keywords: ["lyrics", "song text"], highlightID: SettingsTab.media.highlightID(for: "Enable lyrics")),
+            SettingsSearchEntry(tab: .media, title: "Auto-hide inactive notch media player", keywords: ["auto hide", "inactive", "placeholder", "notch media"], highlightID: SettingsTab.media.highlightID(for: "Auto-hide inactive notch media player")),
             SettingsSearchEntry(tab: .media, title: "Show Change Media Output control", keywords: ["airplay", "route picker", "media output"], highlightID: SettingsTab.media.highlightID(for: "Show Change Media Output control")),
             SettingsSearchEntry(tab: .media, title: "Enable album art parallax", keywords: ["parallax", "lock screen", "album art"], highlightID: SettingsTab.media.highlightID(for: "Enable album art parallax")),
             SettingsSearchEntry(tab: .media, title: "Enable album art parallax effect", keywords: ["parallax", "parallax effect", "album art"], highlightID: SettingsTab.media.highlightID(for: "Enable album art parallax effect")),
@@ -789,7 +807,7 @@ struct SettingsView: View {
             SettingsSearchEntry(tab: .appearance, title: "Slider color", keywords: ["slider", "accent"], highlightID: SettingsTab.appearance.highlightID(for: "Slider color")),
             SettingsSearchEntry(tab: .appearance, title: "Enable Dynamic mirror", keywords: ["mirror", "reflection"], highlightID: SettingsTab.appearance.highlightID(for: "Enable Dynamic mirror")),
             SettingsSearchEntry(tab: .appearance, title: "Mirror shape", keywords: ["mirror shape", "circle", "rectangle"], highlightID: SettingsTab.appearance.highlightID(for: "Mirror shape")),
-            SettingsSearchEntry(tab: .appearance, title: "Show cool face animation while inactivity", keywords: ["face animation", "idle"], highlightID: SettingsTab.appearance.highlightID(for: "Show cool face animation while inactivity")),
+            SettingsSearchEntry(tab: .appearance, title: "Idle Animation", keywords: ["face animation", "idle", "cool face"], highlightID: SettingsTab.appearance.highlightID(for: "Idle Animation")),
             SettingsSearchEntry(tab: .appearance, title: "App icon", keywords: ["app icon", "custom icon"], highlightID: SettingsTab.appearance.highlightID(for: "App icon")),
 
             // Lock Screen
@@ -1494,7 +1512,7 @@ private struct HUDAndOSDSettingsView: View {
     @Default(.enableVolumeHUD) var enableVolumeHUD
     @Default(.enableBrightnessHUD) var enableBrightnessHUD
     @Default(.enableKeyboardBacklightHUD) var enableKeyboardBacklightHUD
-    @Default(.enableBetterDisplayIntegration) var enableBetterDisplayIntegration
+    @Default(.enableThirdPartyDDCIntegration) var enableThirdPartyDDCIntegration
     @Default(.verticalHUDShowValue) var verticalHUDShowValue
     @Default(.verticalHUDInteractive) var verticalHUDInteractive
     @Default(.verticalHUDHeight) var verticalHUDHeight
@@ -1730,7 +1748,7 @@ private struct HUDAndOSDSettingsView: View {
                 }
             case .vertical:
                 Form {
-                    if !accessibilityPermission.isAuthorized && !enableBetterDisplayIntegration {
+                    if !accessibilityPermission.isAuthorized && !enableThirdPartyDDCIntegration {
                         Section {
                             SettingsPermissionCallout(
                                 message: "Accessibility permission is needed to intercept system controls for the Vertical HUD.",
@@ -1746,13 +1764,13 @@ private struct HUDAndOSDSettingsView: View {
                         }
                     }
 
-                    if accessibilityPermission.isAuthorized || enableBetterDisplayIntegration {
+                    if accessibilityPermission.isAuthorized || enableThirdPartyDDCIntegration {
                         Section {
                             Toggle("Volume HUD", isOn: $enableVolumeHUD)
                             Toggle("Brightness HUD", isOn: $enableBrightnessHUD)
                             Toggle("Keyboard Backlight HUD", isOn: $enableKeyboardBacklightHUD)
-                                .disabled(enableBetterDisplayIntegration)
-                                .help(enableBetterDisplayIntegration ? "Disabled while BetterDisplay integration is active — BetterDisplay uses Cmd+Brightness keys for its own controls." : "")
+                                .disabled(enableThirdPartyDDCIntegration)
+                                .help(enableThirdPartyDDCIntegration ? "Disabled while external display integration is active — brightness keys are handled by the external app." : "")
                         } header: {
                             Text("Controls")
                         } footer: {
@@ -1847,7 +1865,7 @@ private struct HUDAndOSDSettingsView: View {
 
             case .circular:
                 Form {
-                    if !accessibilityPermission.isAuthorized && !enableBetterDisplayIntegration {
+                    if !accessibilityPermission.isAuthorized && !enableThirdPartyDDCIntegration {
                         Section {
                             SettingsPermissionCallout(
                                 message: "Accessibility permission is needed to intercept system controls for the Circular HUD.",
@@ -1863,13 +1881,13 @@ private struct HUDAndOSDSettingsView: View {
                         }
                     }
 
-                    if accessibilityPermission.isAuthorized || enableBetterDisplayIntegration {
+                    if accessibilityPermission.isAuthorized || enableThirdPartyDDCIntegration {
                         Section {
                             Toggle("Volume HUD", isOn: $enableVolumeHUD)
                             Toggle("Brightness HUD", isOn: $enableBrightnessHUD)
                             Toggle("Keyboard Backlight HUD", isOn: $enableKeyboardBacklightHUD)
-                                .disabled(enableBetterDisplayIntegration)
-                                .help(enableBetterDisplayIntegration ? "Disabled while BetterDisplay integration is active — BetterDisplay uses Cmd+Brightness keys for its own controls." : "")
+                                .disabled(enableThirdPartyDDCIntegration)
+                                .help(enableThirdPartyDDCIntegration ? "Disabled while external display integration is active — brightness keys are handled by the external app." : "")
                         } header: {
                             Text("Controls")
                         } footer: {
@@ -1909,8 +1927,8 @@ private struct HUDAndOSDSettingsView: View {
                 }
             }
 
-            // BetterDisplay Integration (shared across all HUD variants)
-            BetterDisplayIntegrationSection()
+            // Third-party display integrations (shared across all HUD variants)
+            ExternalDisplayIntegrationsSection()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(paneBackgroundColor)
@@ -1924,93 +1942,135 @@ private struct HUDAndOSDSettingsView: View {
     }
 }
 
-// MARK: - BetterDisplay Integration Settings Section
+// MARK: - External Display Integrations Settings Section
 
-private struct BetterDisplayIntegrationSection: View {
-    @Default(.enableBetterDisplayIntegration) var enableBetterDisplayIntegration
+private struct ExternalDisplayIntegrationsSection: View {
+    @Default(.enableThirdPartyDDCIntegration) var enableThirdPartyDDCIntegration
+    @Default(.thirdPartyDDCProvider) var thirdPartyDDCProvider
+    @Default(.enableExternalVolumeControlListener) var enableExternalVolumeControlListener
     @ObservedObject private var betterDisplayManager = BetterDisplayManager.shared
+    @ObservedObject private var lunarManager = LunarManager.shared
 
     private func highlightID(_ title: String) -> String {
         SettingsTab.hudAndOSD.highlightID(for: title)
     }
 
-    private var statusText: String {
-        if betterDisplayManager.isRunning {
-            return "Running"
-        } else if betterDisplayManager.isDetected {
-            return "Not running"
-        } else {
+    private var providerStatusText: String {
+        switch thirdPartyDDCProvider {
+        case .betterDisplay:
+            if betterDisplayManager.isRunning { return "Running" }
+            if betterDisplayManager.isDetected { return "Not running" }
+            return "Not detected"
+        case .lunar:
+            if lunarManager.isConnected { return "Connected" }
+            if lunarManager.isRunning { return "Running" }
+            if lunarManager.isDetected { return "Not running" }
             return "Not detected"
         }
     }
 
-    private var statusColor: Color {
-        if betterDisplayManager.isRunning {
-            return .green
-        } else if betterDisplayManager.isDetected {
-            return .orange
-        } else {
+    private var providerStatusColor: Color {
+        switch thirdPartyDDCProvider {
+        case .betterDisplay:
+            if betterDisplayManager.isRunning { return .green }
+            if betterDisplayManager.isDetected { return .orange }
             return .secondary
+        case .lunar:
+            if lunarManager.isConnected { return .green }
+            if lunarManager.isRunning { return .orange }
+            if lunarManager.isDetected { return .orange }
+            return .secondary
+        }
+    }
+
+    private var providerStatusDescription: String {
+        switch thirdPartyDDCProvider {
+        case .betterDisplay:
+            if !betterDisplayManager.isDetected {
+                return "Install [BetterDisplay](https://betterdisplay.pro) to control external display brightness (and optional volume) through Atoll's HUD."
+            }
+            if !betterDisplayManager.isRunning {
+                return "BetterDisplay is installed but not currently running. Launch BetterDisplay to enable integration."
+            }
+            return "BetterDisplay OSD events will be routed through Atoll's active HUD style. Brightness is always routed; volume is routed when external volume control listener is enabled below. Make sure BetterDisplay's OSD integration is enabled in Settings › Application › Integration."
+        case .lunar:
+            if !lunarManager.isDetected {
+                return "Install [Lunar](https://lunar.fyi) to control external display brightness, contrast, and optional volume through Atoll's HUD via DDC."
+            }
+            if !lunarManager.isRunning {
+                return "Lunar is installed but not currently running. Launch Lunar to enable integration."
+            }
+            if lunarManager.isConnected {
+                return "Connected to Lunar's DDC socket. Brightness and contrast adjustments are shown through Atoll's HUD; volume follows when external volume control listener is enabled below."
+            }
+            return "Lunar is running but the socket connection is not yet established. It will connect automatically."
+        }
+    }
+
+    private func refreshDetectionStatus() {
+        switch thirdPartyDDCProvider {
+        case .betterDisplay:
+            betterDisplayManager.refreshDetectionStatus()
+        case .lunar:
+            lunarManager.refreshDetectionStatus()
         }
     }
 
     var body: some View {
         Form {
             Section {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("BetterDisplay")
-                            .font(.system(size: 13, weight: .medium))
-                        Text(statusText)
+                Toggle("Enable third-party DDC app integration", isOn: $enableThirdPartyDDCIntegration)
+                    .settingsHighlight(id: highlightID("Third-party DDC app integration"))
+
+                if enableThirdPartyDDCIntegration {
+                    Picker("Provider", selection: $thirdPartyDDCProvider) {
+                        ForEach(ThirdPartyDDCProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider)
+                        }
+                    }
+                    .settingsHighlight(id: highlightID("Third-party DDC provider"))
+
+                    Toggle("Enable external volume control listener", isOn: $enableExternalVolumeControlListener)
+                        .settingsHighlight(id: highlightID("Enable external volume control listener"))
+
+                    Text(
+                        enableExternalVolumeControlListener
+                        ? "Atoll's built-in volume key interception is disabled while external volume listening is on. Volume HUD/OSD will follow \(thirdPartyDDCProvider.displayName) payloads."
+                        : "Atoll keeps native volume key interception. External provider volume payloads are ignored while this is off."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                    HStack {
+                        Text("Status")
+                        Spacer()
+                        Text(providerStatusText)
                             .font(.caption)
-                            .foregroundStyle(statusColor)
+                            .foregroundStyle(providerStatusColor)
                     }
 
-                    Spacer()
+                    Text(providerStatusDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-                    Toggle("", isOn: $enableBetterDisplayIntegration)
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                        .disabled(!betterDisplayManager.isDetected)
-                }
-                .settingsHighlight(id: highlightID("BetterDisplay integration"))
-
-                if !betterDisplayManager.isDetected {
-                    Text("Install [BetterDisplay](https://betterdisplay.pro) to control external display brightness and volume through Atoll's HUD.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if !betterDisplayManager.isRunning {
-                    Text("BetterDisplay is installed but not currently running. Launch BetterDisplay to enable integration.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if enableBetterDisplayIntegration {
-                    Text("BetterDisplay OSD events will be routed through Atoll's active HUD style. Make sure BetterDisplay's OSD integration is enabled in its Settings › Application › Integration.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Enable to route BetterDisplay's brightness and volume changes through Atoll's HUD instead of the system OSD.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if betterDisplayManager.isDetected {
                     Button {
-                        betterDisplayManager.refreshDetectionStatus()
+                        refreshDetectionStatus()
                     } label: {
                         Label("Refresh detection", systemImage: "arrow.clockwise")
                             .font(.caption)
                     }
                     .buttonStyle(.link)
-                }
-            } header: {
-                HStack(spacing: 6) {
-                    Image(systemName: "display.2")
-                    Text("BetterDisplay Integration")
+                } else {
+                    Text("Enable to route BetterDisplay or Lunar display adjustments through Atoll's active HUD style.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("When enabled, Atoll listens for OSD notifications from BetterDisplay and displays them using your selected HUD style above. This works alongside the existing media key interception — BetterDisplay handles external display controls while Atoll provides the visual feedback.")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
+                if enableThirdPartyDDCIntegration {
+                    Text("Atoll always listens to selected-provider brightness events, and listens to provider volume events only when external volume listener is enabled.")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
             }
         }
     }
@@ -2157,7 +2217,7 @@ struct HUD: View {
     @Default(.enableVolumeHUD) var enableVolumeHUD
     @Default(.enableBrightnessHUD) var enableBrightnessHUD
     @Default(.enableKeyboardBacklightHUD) var enableKeyboardBacklightHUD
-    @Default(.enableBetterDisplayIntegration) var enableBetterDisplayIntegration
+    @Default(.enableThirdPartyDDCIntegration) var enableThirdPartyDDCIntegration
     @Default(.systemHUDSensitivity) var systemHUDSensitivity
     @ObservedObject var coordinator = DynamicIslandViewCoordinator.shared
     @ObservedObject private var accessibilityPermission = AccessibilityPermissionStore.shared
@@ -2176,7 +2236,7 @@ struct HUD: View {
     
     var body: some View {
         Form {
-            if !hasAccessibilityPermission && !enableBetterDisplayIntegration {
+            if !hasAccessibilityPermission && !enableThirdPartyDDCIntegration {
                 Section {
                     SettingsPermissionCallout(
                         message: "Accessibility permission lets Dynamic Island replace the native volume, brightness, and keyboard HUDs.",
@@ -2190,13 +2250,13 @@ struct HUD: View {
 
 
             
-            if enableSystemHUD && !Defaults[.enableCustomOSD] && (hasAccessibilityPermission || enableBetterDisplayIntegration) {
+            if enableSystemHUD && !Defaults[.enableCustomOSD] && (hasAccessibilityPermission || enableThirdPartyDDCIntegration) {
                 Section {
                     Toggle("Volume HUD", isOn: $enableVolumeHUD)
                     Toggle("Brightness HUD", isOn: $enableBrightnessHUD)
                     Toggle("Keyboard Backlight HUD", isOn: $enableKeyboardBacklightHUD)
-                        .disabled(enableBetterDisplayIntegration)
-                        .help(enableBetterDisplayIntegration ? "Disabled while BetterDisplay integration is active \u{2014} BetterDisplay uses Cmd+Brightness keys for its own controls." : "")
+                        .disabled(enableThirdPartyDDCIntegration)
+                        .help(enableThirdPartyDDCIntegration ? "Disabled while external display integration is active \u{2014} brightness keys are handled by the external app." : "")
                 } header: {
                     Text("Controls")
                 } footer: {
@@ -2312,6 +2372,7 @@ struct Media: View {
     @Default(.lockScreenGlassCustomizationMode) private var lockScreenGlassCustomizationMode
     @Default(.lockScreenMusicAlbumParallaxEnabled) private var lockScreenMusicAlbumParallaxEnabled
     @Default(.showStandardMediaControls) private var showStandardMediaControls
+    @Default(.autoHideInactiveNotchMediaPlayer) private var autoHideInactiveNotchMediaPlayer
 
     private func highlightID(_ title: String) -> String {
         SettingsTab.media.highlightID(for: title)
@@ -2359,12 +2420,20 @@ struct Media: View {
                     .disabled(enableMinimalisticUI)
                     .settingsHighlight(id: highlightID("Show media controls in Dynamic Island"))
 
+                Defaults.Toggle("Auto-hide inactive notch media player", key: .autoHideInactiveNotchMediaPlayer)
+                    .disabled(enableMinimalisticUI || !showStandardMediaControls)
+                    .settingsHighlight(id: highlightID("Auto-hide inactive notch media player"))
+
                 if enableMinimalisticUI {
                     Text("Disable Minimalistic UI to configure the standard notch media controls.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if standardControlsSuppressed {
                     Text("Standard notch media controls are hidden. Re-enable the toggle above to restore them.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if !autoHideInactiveNotchMediaPlayer {
+                    Text("When disabled, the notch music player stays visible with placeholder metadata even when playback is inactive.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -3129,6 +3198,15 @@ struct Shelf: View {
     @Default(.autoRemoveShelfItems) var autoRemoveShelfItems
     @StateObject private var quickShareService = QuickShareService.shared
     @ObservedObject private var fullDiskAccessPermission = FullDiskAccessPermissionStore.shared
+    @ObservedObject private var shelfFolderAccessPermission = ShelfFolderAccessPermissionStore.shared
+
+    private var hasDocumentsAndDownloadsAccess: Bool {
+        shelfFolderAccessPermission.hasDocumentsAndDownloadsAccess
+    }
+
+    private var canEnableShelf: Bool {
+        fullDiskAccessPermission.isAuthorized || hasDocumentsAndDownloadsAccess
+    }
 
     private var selectedProvider: QuickShareProvider? {
         quickShareService.availableProviders.first(where: { $0.id == quickShareProvider })
@@ -3144,18 +3222,33 @@ struct Shelf: View {
 
     var body: some View {
         Form {
-            if !fullDiskAccessPermission.isAuthorized {
+            if !canEnableShelf || !fullDiskAccessPermission.isAuthorized {
                 Section {
-                    SettingsPermissionCallout(
-                        title: "Full Disk Access required",
-                        message: "Grant Full Disk Access so the Shelf can index and move files outside the app sandbox.",
-                        icon: "externaldrive.fill",
-                        iconColor: .purple,
-                        requestButtonTitle: "Request Full Disk Access",
-                        openSettingsButtonTitle: "Open Privacy & Security",
-                        requestAction: { fullDiskAccessPermission.requestAccessPrompt() },
-                        openSettingsAction: { fullDiskAccessPermission.openSystemSettings() }
-                    )
+                    if !canEnableShelf {
+                        SettingsPermissionCallout(
+                            title: "Additional folder access required",
+                            message: "Enable Full Disk Access, or grant access to both Documents and Downloads folders to use Shelf.",
+                            icon: "folder.badge.questionmark",
+                            iconColor: .orange,
+                            requestButtonTitle: "Request Folder Access",
+                            openSettingsButtonTitle: "Open Privacy & Security",
+                            requestAction: { shelfFolderAccessPermission.requestAccessPrompt() },
+                            openSettingsAction: { shelfFolderAccessPermission.openSystemSettings() }
+                        )
+                    }
+
+                    if !fullDiskAccessPermission.isAuthorized {
+                        SettingsPermissionCallout(
+                            title: "Full Disk Access for global mode",
+                            message: "Without Full Disk Access, Shelf can only read files from Documents and Downloads. Grant Full Disk Access to make Shelf work globally.",
+                            icon: "externaldrive.fill",
+                            iconColor: .purple,
+                            requestButtonTitle: "Request Full Disk Access",
+                            openSettingsButtonTitle: "Open Privacy & Security",
+                            requestAction: { fullDiskAccessPermission.requestAccessPrompt() },
+                            openSettingsAction: { fullDiskAccessPermission.openSystemSettings() }
+                        )
+                    }
                 } header: {
                     Text("Permissions")
                 }
@@ -3163,7 +3256,7 @@ struct Shelf: View {
 
             Section {
                 Defaults.Toggle("Enable shelf", key: .dynamicShelf)
-                    .disabled(!fullDiskAccessPermission.isAuthorized)
+                    .disabled(!canEnableShelf)
                     .settingsHighlight(id: highlightID("Enable shelf"))
 
                 Defaults.Toggle("Open shelf tab by default if items added", key: .openShelfByDefault)
@@ -3250,6 +3343,7 @@ struct Shelf: View {
         .navigationTitle("Shelf")
         .onAppear {
             fullDiskAccessPermission.refreshStatus()
+            shelfFolderAccessPermission.refreshStatus()
         }
     }
 }
@@ -3857,8 +3951,8 @@ struct Appearance: View {
                         .tag(MirrorShapeEnum.rectangle)
                 }
                 .settingsHighlight(id: highlightID("Mirror shape"))
-                Defaults.Toggle("Show cool face animation while inactivity", key: .showNotHumanFace)
-                    .settingsHighlight(id: highlightID("Show cool face animation while inactivity"))
+                Defaults.Toggle("Idle Animation", key: .showNotHumanFace)
+                    .settingsHighlight(id: highlightID("Idle Animation"))
             } header: {
                 HStack {
                     Text("Additional features")
@@ -6908,7 +7002,7 @@ struct CustomOSDSettings: View {
     @Default(.enableOSDVolume) var enableOSDVolume
     @Default(.enableOSDBrightness) var enableOSDBrightness
     @Default(.enableOSDKeyboardBacklight) var enableOSDKeyboardBacklight
-    @Default(.enableBetterDisplayIntegration) var enableBetterDisplayIntegration
+    @Default(.enableThirdPartyDDCIntegration) var enableThirdPartyDDCIntegration
     @Default(.osdMaterial) var osdMaterial
     @Default(.osdLiquidGlassCustomizationMode) var osdLiquidGlassCustomizationMode
     @Default(.osdLiquidGlassVariant) var osdLiquidGlassVariant
@@ -6951,7 +7045,7 @@ struct CustomOSDSettings: View {
     
     var body: some View {
         Form {
-            if !hasAccessibilityPermission && !enableBetterDisplayIntegration {
+            if !hasAccessibilityPermission && !enableThirdPartyDDCIntegration {
                 Section {
                     SettingsPermissionCallout(
                         message: "Accessibility permission is needed to intercept system controls for the Custom OSD.",
@@ -6963,7 +7057,7 @@ struct CustomOSDSettings: View {
                 }
             }
 
-            if hasAccessibilityPermission || enableBetterDisplayIntegration {
+            if hasAccessibilityPermission || enableThirdPartyDDCIntegration {
                 Section {
                     Toggle("Volume OSD", isOn: $enableOSDVolume)
                         .settingsHighlight(id: highlightID("Volume OSD"))
@@ -6971,8 +7065,8 @@ struct CustomOSDSettings: View {
                         .settingsHighlight(id: highlightID("Brightness OSD"))
                     Toggle("Keyboard Backlight OSD", isOn: $enableOSDKeyboardBacklight)
                         .settingsHighlight(id: highlightID("Keyboard Backlight OSD"))
-                        .disabled(enableBetterDisplayIntegration)
-                        .help(enableBetterDisplayIntegration ? "Disabled while BetterDisplay integration is active \u{2014} BetterDisplay uses Cmd+Brightness keys for its own controls." : "")
+                        .disabled(enableThirdPartyDDCIntegration)
+                        .help(enableThirdPartyDDCIntegration ? "Disabled while external display integration is active \u{2014} brightness keys are handled by the external app." : "")
                 } header: {
                     Text("Controls")
                 } footer: {
@@ -7209,6 +7303,7 @@ struct TerminalSettings: View {
     @ObservedObject var terminalManager = TerminalManager.shared
     @Default(.enableTerminalFeature) var enableTerminalFeature
     @Default(.terminalShellPath) var terminalShellPath
+    @Default(.terminalFontFamily) var terminalFontFamily
     @Default(.terminalFontSize) var terminalFontSize
     @Default(.terminalOpacity) var terminalOpacity
     @Default(.terminalMaxHeightFraction) var terminalMaxHeightFraction
@@ -7227,6 +7322,21 @@ struct TerminalSettings: View {
 
     private var formattedMaxHeight: String {
         "\(Int(terminalMaxHeightFraction * 100))% of screen"
+    }
+
+    /// All monospaced font families available on the system.
+    private var monospacedFontFamilies: [String] {
+        NSFontManager.shared.availableFontFamilies.filter { family in
+            guard let font = NSFont(name: family, size: 12) else { return false }
+            return font.isFixedPitch
+                || font.fontDescriptor.symbolicTraits.contains(.monoSpace)
+        }
+        .sorted()
+    }
+
+    /// Display name for the font picker — shows "System Monospaced" when no custom font is set.
+    private var fontDisplayName: String {
+        terminalFontFamily.isEmpty ? "System Monospaced" : terminalFontFamily
     }
 
     private var cursorStyleBinding: Binding<TerminalCursorStyleOption> {
@@ -7279,6 +7389,20 @@ struct TerminalSettings: View {
 
                 // MARK: Appearance
                 Section {
+                    Picker("Font family", selection: $terminalFontFamily) {
+                        Text("System Monospaced").tag("")
+                        Divider()
+                        ForEach(monospacedFontFamilies, id: \.self) { family in
+                            Text(family)
+                                .font(.custom(family, size: 13))
+                                .tag(family)
+                        }
+                    }
+                    .onChange(of: terminalFontFamily) { _, newValue in
+                        terminalManager.applyFontFamily(newValue)
+                    }
+                    .settingsHighlight(id: highlightID("Font family"))
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Font size")
