@@ -398,9 +398,13 @@ struct MusicControlsView: View {
         }
     }
 
+    private var isAppleMusicActive: Bool {
+        musicManager.bundleIdentifier == "com.apple.Music"
+    }
+
     private var displayedSlots: [MusicControlButton] {
         if showCustomControls {
-            let normalized = slotConfig.normalized(allowingMediaOutput: showMediaOutputControl)
+            let normalized = slotConfig.normalized(allowingMediaOutput: showMediaOutputControl, isAppleMusicActive: isAppleMusicActive)
             return normalized.contains(where: { $0 != .none }) ? normalized : MusicControlButton.defaultLayout
         }
 
@@ -474,6 +478,8 @@ struct MusicControlsView: View {
             }
         case .mediaOutput:
             MediaOutputPickerButton()
+        case .airPlay:
+            AirPlayPickerButton()
         case .lyrics:
             HoverButton(
                 icon: enableLyrics ? "quote.bubble.fill" : "quote.bubble",
@@ -849,11 +855,60 @@ struct CustomSlider: View {
 
 private struct MediaOutputPickerButton: View {
     @ObservedObject private var routeManager = AudioRouteManager.shared
-    @ObservedObject private var musicManager = MusicManager.shared
     @StateObject private var volumeModel = MediaOutputVolumeViewModel()
+    @State private var isPopoverPresented = false
+    @State private var isHoveringPopover = false
+    @EnvironmentObject private var vm: DynamicIslandViewModel
+
+    var body: some View {
+        HoverButton(icon: buttonIcon, iconColor: .white, scale: .medium) {
+            isPopoverPresented.toggle()
+            if isPopoverPresented {
+                routeManager.refreshDevices()
+            }
+        }
+        .accessibilityLabel("Media output")
+        .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
+            MediaOutputSelectorPopover(
+                routeManager: routeManager,
+                volumeModel: volumeModel,
+                onHoverChanged: { hovering in
+                    isHoveringPopover = hovering
+                    updatePopoverActivity()
+                }
+            ) {
+                isPopoverPresented = false
+                isHoveringPopover = false
+                updatePopoverActivity()
+            }
+        }
+        .onAppear {
+            routeManager.refreshDevices()
+        }
+        .onChange(of: isPopoverPresented) { _, presented in
+            if !presented {
+                isHoveringPopover = false
+            }
+            updatePopoverActivity()
+        }
+        .onDisappear {
+            vm.isMediaOutputPopoverActive = false
+        }
+    }
+
+    private var buttonIcon: String {
+        routeManager.activeDevice?.iconName ?? "speaker.wave.2"
+    }
+
+    private func updatePopoverActivity() {
+        vm.isMediaOutputPopoverActive = isPopoverPresented && isHoveringPopover
+    }
+}
+
+private struct AirPlayPickerButton: View {
+    @ObservedObject private var musicManager = MusicManager.shared
     @ObservedObject private var airPlayManager = AppleMusicAirPlayManager.shared
     @State private var isPopoverPresented = false
-    @State private var isAirPlayPopoverPresented = false
     @State private var isHoveringPopover = false
     @EnvironmentObject private var vm: DynamicIslandViewModel
 
@@ -862,68 +917,33 @@ private struct MediaOutputPickerButton: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
-            HoverButton(icon: buttonIcon, iconColor: .white, scale: .medium) {
-                isPopoverPresented.toggle()
-                if isPopoverPresented {
-                    routeManager.refreshDevices()
-                }
+        HoverButton(icon: "airplayaudio", iconColor: .white, scale: .medium) {
+            isPopoverPresented.toggle()
+            if isPopoverPresented {
+                Task { await airPlayManager.refreshDevices() }
             }
-            .accessibilityLabel("Media output")
-            .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
-                MediaOutputSelectorPopover(
-                    routeManager: routeManager,
-                    volumeModel: volumeModel,
-                    onHoverChanged: { hovering in
-                        isHoveringPopover = hovering
-                        updatePopoverActivity()
-                    }
-                ) {
-                    isPopoverPresented = false
-                    isHoveringPopover = false
+        }
+        .accessibilityLabel("AirPlay")
+        .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
+            AirPlaySelectorPopover(
+                airPlayManager: airPlayManager,
+                onHoverChanged: { hovering in
+                    isHoveringPopover = hovering
                     updatePopoverActivity()
                 }
-            }
-
-            if isAppleMusicActive && !airPlayManager.devices.isEmpty {
-                HoverButton(icon: "airplayaudio", iconColor: .white, scale: .medium) {
-                    isAirPlayPopoverPresented.toggle()
-                    if isAirPlayPopoverPresented {
-                        Task { await airPlayManager.refreshDevices() }
-                    }
-                }
-                .accessibilityLabel("AirPlay")
-                .popover(isPresented: $isAirPlayPopoverPresented, arrowEdge: .bottom) {
-                    AirPlaySelectorPopover(
-                        airPlayManager: airPlayManager,
-                        onHoverChanged: { hovering in
-                            isHoveringPopover = hovering
-                            updatePopoverActivity()
-                        }
-                    ) {
-                        isAirPlayPopoverPresented = false
-                        isHoveringPopover = false
-                        updatePopoverActivity()
-                    }
-                }
+            ) {
+                isPopoverPresented = false
+                isHoveringPopover = false
+                updatePopoverActivity()
             }
         }
         .onAppear {
-            routeManager.refreshDevices()
             if isAppleMusicActive {
                 Task { await airPlayManager.refreshDevices() }
             }
         }
         .onChange(of: isPopoverPresented) { _, presented in
-            if !presented {
-                isHoveringPopover = false
-            }
-            updatePopoverActivity()
-        }
-        .onChange(of: isAirPlayPopoverPresented) { _, presented in
-            if !presented {
-                isHoveringPopover = false
-            }
+            if !presented { isHoveringPopover = false }
             updatePopoverActivity()
         }
         .onChange(of: musicManager.bundleIdentifier) { _, newBundle in
@@ -936,12 +956,8 @@ private struct MediaOutputPickerButton: View {
         }
     }
 
-    private var buttonIcon: String {
-        routeManager.activeDevice?.iconName ?? "speaker.wave.2"
-    }
-
     private func updatePopoverActivity() {
-        vm.isMediaOutputPopoverActive = (isPopoverPresented || isAirPlayPopoverPresented) && isHoveringPopover
+        vm.isMediaOutputPopoverActive = isPopoverPresented && isHoveringPopover
     }
 }
 

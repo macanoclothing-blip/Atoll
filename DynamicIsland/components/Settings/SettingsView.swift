@@ -2373,6 +2373,11 @@ struct Media: View {
     @Default(.lockScreenMusicAlbumParallaxEnabled) private var lockScreenMusicAlbumParallaxEnabled
     @Default(.showStandardMediaControls) private var showStandardMediaControls
     @Default(.autoHideInactiveNotchMediaPlayer) private var autoHideInactiveNotchMediaPlayer
+    @ObservedObject private var musicManager = MusicManager.shared
+
+    private var isAppleMusicActive: Bool {
+        musicManager.bundleIdentifier == "com.apple.Music"
+    }
 
     private func highlightID(_ title: String) -> String {
         SettingsTab.media.highlightID(for: title)
@@ -2532,6 +2537,11 @@ struct Media: View {
                 Defaults.Toggle("Show lock screen media panel", key: .enableLockScreenMediaWidget)
                 Defaults.Toggle("Show media app icon", key: .lockScreenShowAppIcon)
                     .disabled(!enableLockScreenMediaWidget)
+                if isAppleMusicActive {
+                    Defaults.Toggle("Show merged AirPlay and output devices", key: .lockScreenMusicMergedAirPlayOutput)
+                        .disabled(!enableLockScreenMediaWidget)
+                        .settingsHighlight(id: highlightID("Show merged AirPlay and output devices"))
+                }
                 Defaults.Toggle("Show panel border", key: .lockScreenPanelShowsBorder)
                     .disabled(!enableLockScreenMediaWidget)
                 if lockScreenGlassCustomizationMode == .customLiquid {
@@ -4282,6 +4292,12 @@ struct LockScreenSettings: View {
     @Default(.lockScreenCalendarSelectionMode) private var lockScreenCalendarSelectionMode
     @Default(.lockScreenSelectedCalendarIDs) private var lockScreenSelectedCalendarIDs
     @Default(.lockScreenShowCalendarEventAfterStartEnabled) private var lockScreenShowCalendarEventAfterStartEnabled
+    @Default(.lockScreenMusicMergedAirPlayOutput) private var lockScreenMusicMergedAirPlayOutput
+    @ObservedObject private var musicManager = MusicManager.shared
+
+    private var isAppleMusicActive: Bool {
+        musicManager.bundleIdentifier == "com.apple.Music"
+    }
 
     private func highlightID(_ title: String) -> String {
         SettingsTab.lockScreen.highlightID(for: title)
@@ -4437,6 +4453,11 @@ struct LockScreenSettings: View {
                 Defaults.Toggle("Show media app icon", key: .lockScreenShowAppIcon)
                     .disabled(!enableLockScreenMediaWidget)
                     .settingsHighlight(id: highlightID("Show media app icon"))
+                if isAppleMusicActive {
+                    Defaults.Toggle("Show merged AirPlay and output devices", key: .lockScreenMusicMergedAirPlayOutput)
+                        .disabled(!enableLockScreenMediaWidget)
+                        .settingsHighlight(id: highlightID("Show merged AirPlay and output devices"))
+                }
                 Defaults.Toggle("Show panel border", key: .lockScreenPanelShowsBorder)
                     .disabled(!enableLockScreenMediaWidget)
                     .settingsHighlight(id: highlightID("Show panel border"))
