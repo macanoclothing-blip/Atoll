@@ -126,6 +126,7 @@ struct ModelSelectionView: View {
     @State private var openaiApiKey: String = Defaults[.openaiApiKey]
     @State private var claudeApiKey: String = Defaults[.claudeApiKey]
     @State private var localEndpoint: String = Defaults[.localModelEndpoint]
+    @State private var groqApiKey: String = Defaults[.groqApiKey]
     
     @State private var showingApiKeyAlert = false
     
@@ -170,14 +171,21 @@ struct ModelSelectionView: View {
                             .foregroundColor(.primary)
                         
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
-                            ForEach(AIModelProvider.allCases) { provider in
+                            ForEach(AIModelProvider.allCases.filter { $0 != .groq }) { provider in
                                 ProviderCard(
                                     provider: provider,
                                     isSelected: selectedProvider == provider,
-                                    onSelect: { selectedProvider = provider }
+                                    onSelect: { selectProvider(provider) }
                                 )
                             }
                         }
+
+                        ProviderCard(
+                            provider: .groq,
+                            isSelected: selectedProvider == .groq,
+                            onSelect: { selectProvider(.groq) },
+                            isWide: true
+                        )
                     }
                     
                     Divider()
@@ -245,7 +253,8 @@ struct ModelSelectionView: View {
                             geminiApiKey: $geminiApiKey,
                             openaiApiKey: $openaiApiKey,
                             claudeApiKey: $claudeApiKey,
-                            localEndpoint: $localEndpoint
+                            localEndpoint: $localEndpoint,
+                            groqApiKey: $groqApiKey
                         )
                     }
                 }
@@ -291,22 +300,31 @@ struct ModelSelectionView: View {
             return !claudeApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .local:
             return !localEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .groq:
+            return !groqApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
     
     private func loadCurrentConfiguration() {
         selectedProvider = Defaults[.selectedAIProvider]
-        // Default to the latest Gemini 2.5 Flash if no model is selected
-        selectedModel = Defaults[.selectedAIModel] ?? AIModel(id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", supportsThinking: true)
+        selectedModel = Defaults[.selectedAIModel]
+        if selectedModel == nil || !selectedProvider.supportedModels.contains(where: { $0.id == selectedModel?.id }) {
+            selectedModel = selectedProvider.supportedModels.first
+        }
         enableThinking = Defaults[.enableThinkingMode]
         
         geminiApiKey = Defaults[.geminiApiKey]
         openaiApiKey = Defaults[.openaiApiKey]
         claudeApiKey = Defaults[.claudeApiKey]
         localEndpoint = Defaults[.localModelEndpoint]
+        groqApiKey = Defaults[.groqApiKey]
     }
     
     private func saveConfiguration() {
+        if selectedModel == nil || !selectedProvider.supportedModels.contains(where: { $0.id == selectedModel?.id }) {
+            selectedModel = selectedProvider.supportedModels.first
+        }
+
         Defaults[.selectedAIProvider] = selectedProvider
         Defaults[.selectedAIModel] = selectedModel
         Defaults[.enableThinkingMode] = enableThinking
@@ -315,11 +333,19 @@ struct ModelSelectionView: View {
         Defaults[.openaiApiKey] = openaiApiKey
         Defaults[.claudeApiKey] = claudeApiKey
         Defaults[.localModelEndpoint] = localEndpoint
+        Defaults[.groqApiKey] = groqApiKey
         
         closePanel()
         
         // Notify that configuration changed
         NotificationCenter.default.post(name: .aiModelConfigurationChanged, object: nil)
+    }
+
+    private func selectProvider(_ provider: AIModelProvider) {
+        selectedProvider = provider
+        if !provider.supportedModels.contains(where: { $0.id == selectedModel?.id }) {
+            selectedModel = provider.supportedModels.first
+        }
     }
     
     private func closePanel() {
@@ -334,6 +360,7 @@ struct ProviderCard: View {
     let provider: AIModelProvider
     let isSelected: Bool
     let onSelect: () -> Void
+    var isWide: Bool = false
     
     var body: some View {
         VStack(spacing: 12) {
@@ -374,6 +401,7 @@ struct ProviderCard: View {
             onSelect()
         }
         .animation(.easeInOut(duration: 0.2), value: isSelected)
+        .frame(maxWidth: .infinity, minHeight: isWide ? 110 : nil)
     }
     
     private func iconForProvider(_ provider: AIModelProvider) -> String {
@@ -382,6 +410,7 @@ struct ProviderCard: View {
         case .openai: return "brain.head.profile"
         case .claude: return "doc.text"
         case .local: return "server.rack"
+        case .groq: return "bolt.fill"
         }
     }
 }
@@ -441,6 +470,7 @@ struct ApiConfigurationSection: View {
     @Binding var openaiApiKey: String
     @Binding var claudeApiKey: String
     @Binding var localEndpoint: String
+    @Binding var groqApiKey: String
     
     var body: some View {
         VStack(spacing: 12) {
@@ -476,6 +506,13 @@ struct ApiConfigurationSection: View {
                     value: $localEndpoint,
                     helpText: "Ollama or compatible API endpoint",
                     isSecure: false
+                )
+            case .groq:
+                ApiKeyField(
+                    title: "Groq API Key",
+                    placeholder: "Enter your Groq API key",
+                    value: $groqApiKey,
+                    helpText: "Get your API key from Groq Console"
                 )
             }
         }
