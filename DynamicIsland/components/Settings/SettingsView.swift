@@ -2682,6 +2682,16 @@ struct Media: View {
                         .opacity(enableLockScreenMediaWidget ? 1 : 0.5)
                         .settingsHighlight(id: highlightID("Enable media panel blur"))
                 }
+                VStack(alignment: .leading, spacing: 4) {
+                    Defaults.Toggle(key: .lockScreenMusicFullscreenArtworkEnabled) {
+                        Text("Fullscreen artwork on right-click")
+                    }
+                    .disabled(!enableLockScreenMediaWidget)
+                    Text("Right-click the album art on the lock screen to set it as the wallpaper. Right-click again or click the background to restore the original wallpaper. The swap is temporary and leaves no trace in System Settings.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } header: {
                 Text("Lock Screen Integration")
             } footer: {
@@ -4787,6 +4797,18 @@ struct LockScreenSettings: View {
                     blurSettingUnavailableRow
                         .opacity(enableLockScreenMediaWidget ? 1 : 0.5)
                         .settingsHighlight(id: highlightID("Enable media panel blur"))
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Defaults.Toggle(key: .lockScreenMusicFullscreenArtworkEnabled) {
+                        Text("Fullscreen artwork on right-click")
+                    }
+                    .disabled(!enableLockScreenMediaWidget)
+                    .settingsHighlight(id: highlightID("Fullscreen artwork on right-click"))
+                    Text("Right-click the album art on the lock screen to set it as the wallpaper. Right-click again or click the background to restore the original wallpaper. The swap is temporary and leaves no trace in System Settings.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if !showStandardMediaControls {

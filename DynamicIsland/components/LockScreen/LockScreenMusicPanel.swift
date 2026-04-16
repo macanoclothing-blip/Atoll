@@ -67,7 +67,6 @@ struct LockScreenMusicPanel: View {
     @Default(.lockScreenMusicAlbumParallaxEnabled) private var lockScreenParallaxEnabled
     @Default(.lockScreenMusicPanelWidth) private var collapsedPanelWidth
     @Default(.lockScreenMusicFullscreenArtworkEnabled) private var fullscreenArtworkEnabled
-    @Default(.lockScreenMusicFullscreenVideoArtwork) private var fullscreenVideoArtwork
 
     init(animator: LockScreenPanelAnimator) {
         _animator = ObservedObject(wrappedValue: animator)
@@ -385,7 +384,6 @@ struct LockScreenMusicPanel: View {
         guard musicManager.hasActiveSession else { return }
 
         let artwork = musicManager.albumArt
-        let videoURL = musicManager.videoArtworkURL
 
         withAnimation(.easeInOut(duration: 0.28)) {
             isArtworkFullscreen = true
@@ -399,7 +397,7 @@ struct LockScreenMusicPanel: View {
             }
         }
 
-        FullScreenArtworkWindowManager.shared.show(artwork: artwork, videoURL: isAppleMusicActive && fullscreenVideoArtwork ? videoURL : nil)
+        FullScreenArtworkWindowManager.shared.show(artwork: artwork)
     }
 
     private func registerInteraction() {

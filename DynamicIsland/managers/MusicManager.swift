@@ -129,8 +129,6 @@ class MusicManager: ObservableObject {
 
     private(set) var artworkData: Data? = nil
 
-    @Published var videoArtworkURL: URL? = nil
-
     private var liveStreamUnknownDurationCount: Int = 0
     private var liveStreamEdgeObservationCount: Int = 0
     private var liveStreamCompletionObservationCount: Int = 0
@@ -371,7 +369,6 @@ class MusicManager: ObservableObject {
             self.lastArtworkBundleIdentifier = state.bundleIdentifier
 
             self.fetchLyrics()
-            self.fetchVideoArtwork()
 
             // Only update sneak peek if there's actual content and something changed
             if shouldAutoPeekOnTrackChange && !state.title.isEmpty && !state.artist.isEmpty && state.isPlaying {
@@ -938,31 +935,6 @@ class MusicManager: ObservableObject {
     private func stopLyricSync() {
         lyricSyncTask?.cancel()
         lyricSyncTask = nil
-    }
-
-    // MARK: - Video Artwork
-
-    func fetchVideoArtwork() {
-        guard Defaults[.lockScreenMusicFullscreenVideoArtwork] else {
-            videoArtworkURL = nil
-            return
-        }
-        guard bundleIdentifier == "com.apple.Music" else {
-            videoArtworkURL = nil
-            return
-        }
-
-        let title = songTitle
-        let artist = artistName
-
-        Task {
-            let url = await AnimatedArtworkManager.shared.fetchAnimatedArtworkURL(
-                title: title, artist: artist
-            )
-            await MainActor.run {
-                self.videoArtworkURL = url
-            }
-        }
     }
 
     func toggleLyrics() {
