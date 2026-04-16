@@ -195,8 +195,7 @@ struct LockScreenTimerWidget: View {
                 controlButtons
                     .padding(.trailing, 12)
 
-                titleSection
-                    .frame(maxWidth: .infinity)
+                Spacer()
 
                 countdownSection
                     .padding(.leading, 12)
