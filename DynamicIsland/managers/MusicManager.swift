@@ -79,6 +79,7 @@ class MusicManager: ObservableObject {
     @Published var songTitle: String = "I'm Handsome"
     @Published var artistName: String = "Me"
     @Published var albumArt: NSImage = defaultImage
+    @Published var liveArtworkURL: URL?
     @Published var isPlaying = false
     @Published var album: String = "Self Love"
     @Published var isPlayerIdle: Bool = true
@@ -392,6 +393,10 @@ class MusicManager: ObservableObject {
 
         if state.album != self.album {
             self.album = state.album
+        }
+
+        if state.liveArtworkURL != self.liveArtworkURL {
+            self.liveArtworkURL = state.liveArtworkURL
         }
 
         if timeChanged {

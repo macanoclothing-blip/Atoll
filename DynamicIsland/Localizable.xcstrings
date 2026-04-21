@@ -19796,6 +19796,9 @@
         }
       }
     },
+    "Fullscreen artwork on right-click" : {
+
+    },
     "Fully charged" : {
       "comment" : "Charging fallback label when already charged",
       "localizations" : {
@@ -22822,6 +22825,9 @@
           }
         }
       }
+    },
+    "Keep album art visible during fullscreen artwork" : {
+
     },
     "Keep terminal open until clicked outside" : {
       "localizations" : {
@@ -34221,6 +34227,9 @@
           }
         }
       }
+    },
+    "Right-click the album art on the lock screen to set it as the wallpaper. Right-click again or click the background to restore the original wallpaper. The swap is temporary and leaves no trace in System Settings." : {
+
     },
     "Ring" : {
       "comment" : "The name of the timer progress style that shows a ring shape.",

@@ -67,6 +67,7 @@ struct LockScreenMusicPanel: View {
     @Default(.lockScreenMusicAlbumParallaxEnabled) private var lockScreenParallaxEnabled
     @Default(.lockScreenMusicPanelWidth) private var collapsedPanelWidth
     @Default(.lockScreenMusicFullscreenArtworkEnabled) private var fullscreenArtworkEnabled
+    @Default(.lockScreenMusicKeepAlbumArtworkVisible) private var keepAlbumArtworkVisible
 
     init(animator: LockScreenPanelAnimator) {
         _animator = ObservedObject(wrappedValue: animator)
@@ -82,6 +83,10 @@ struct LockScreenMusicPanel: View {
     private let expandedSliderExtraHeight: CGFloat = 88
     private let collapsedLyricsExtraHeight: CGFloat = 64
     private let expandedLyricsExtraHeight: CGFloat = 96
+
+    private var showsFullscreenArtworkPlaceholder: Bool {
+        isArtworkFullscreen && !keepAlbumArtworkVisible
+    }
 
     private var shouldUseFrostedBlur: Bool {
         enableBlur && !usesLiquidGlass
@@ -303,7 +308,7 @@ struct LockScreenMusicPanel: View {
 
     private func albumArtButton(size: CGFloat, cornerRadius: CGFloat) -> some View {
         ZStack(alignment: .bottomTrailing) {
-            if isArtworkFullscreen {
+            if showsFullscreenArtworkPlaceholder {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(Color.white.opacity(0.06))
                     .overlay(
@@ -397,7 +402,10 @@ struct LockScreenMusicPanel: View {
             }
         }
 
-        FullScreenArtworkWindowManager.shared.show(artwork: artwork)
+        FullScreenArtworkWindowManager.shared.show(
+            artwork: artwork,
+            videoURL: musicManager.liveArtworkURL
+        )
     }
 
     private func registerInteraction() {
