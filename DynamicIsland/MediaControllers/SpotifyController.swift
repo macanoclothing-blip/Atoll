@@ -23,6 +23,8 @@
 import Foundation
 import Combine
 import SwiftUI
+import AVFoundation
+import AppKit
 
 private actor SpotifyCanvasResolver {
     struct ResolutionResult {
@@ -49,20 +51,12 @@ private actor SpotifyCanvasResolver {
 
     private struct CacheEntry {
         let url: URL?
+        let source: Source?
         let expiresAt: Date
     }
 
     private let fileManager = FileManager.default
-    private let session: URLSession
     private var resolvedCache: [String: CacheEntry] = [:]
-
-    init() {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 3
-        configuration.timeoutIntervalForResource = 5
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        self.session = URLSession(configuration: configuration)
-    }
 
     func resolveCanvasURL(trackIdentifiers: [String]) async -> ResolutionResult {
         let normalizedIdentifiers = normalized(trackIdentifiers)
@@ -74,23 +68,25 @@ private actor SpotifyCanvasResolver {
         let now = Date()
 
         if let cached = resolvedCache[cacheKey], cached.expiresAt > now {
-            return ResolutionResult(url: cached.url, source: cached.url == nil ? nil : .indexedDB)
+            return ResolutionResult(url: cached.url, source: cached.source)
         }
 
-        let candidate = await searchCanvasCandidate(trackIdentifiers: normalizedIdentifiers)
+        let candidate = searchCanvasCandidate(trackIdentifiers: normalizedIdentifiers)
         if let candidate {
             resolvedCache[cacheKey] = CacheEntry(
                 url: candidate.url,
-                expiresAt: now.addingTimeInterval(60 * 20)
+                source: candidate.source,
+                expiresAt: now.addingTimeInterval(60 * 10)
             )
             return ResolutionResult(url: candidate.url, source: candidate.source)
         }
 
-        // Negative cache is short-lived so we do not permanently "freeze" nil.
         resolvedCache[cacheKey] = CacheEntry(
             url: nil,
-            expiresAt: now.addingTimeInterval(12)
+            source: nil,
+            expiresAt: now.addingTimeInterval(10)
         )
+
         return ResolutionResult(url: nil, source: nil)
     }
 
@@ -102,12 +98,12 @@ private actor SpotifyCanvasResolver {
         ))
     }
 
-    private func searchCanvasCandidate(trackIdentifiers: [String]) async -> CanvasCandidate? {
+    private func searchCanvasCandidate(trackIdentifiers: [String]) -> CanvasCandidate? {
         var bestCandidate = searchPersistentCache(trackIdentifiers: trackIdentifiers)
 
         for (fileIndex, fileURL) in indexedDBCandidateFiles().enumerated() {
             guard let data = try? Data(contentsOf: fileURL, options: [.mappedIfSafe]) else { continue }
-            let sourceBias = max(0, 100 - fileIndex)
+            let sourceBias = max(0, 120 - fileIndex)
 
             if let candidate = bestIndexedDBCanvasCandidate(
                 from: data,
@@ -118,37 +114,7 @@ private actor SpotifyCanvasResolver {
             }
         }
 
-        guard let bestCandidate else { return nil }
-        let isReachable = await validateCanvasURL(bestCandidate.url)
-        return isReachable ? bestCandidate : nil
-    }
-
-    private func validateCanvasURL(_ url: URL) async -> Bool {
-        var request = URLRequest(url: url)
-        request.httpMethod = "HEAD"
-
-        do {
-            let (_, response) = try await session.data(for: request)
-            if let http = response as? HTTPURLResponse {
-                return (200..<400).contains(http.statusCode)
-            }
-            return true
-        } catch {
-            // Some CDN configurations may reject HEAD. Retry with a tiny GET.
-            var fallbackRequest = URLRequest(url: url)
-            fallbackRequest.httpMethod = "GET"
-            fallbackRequest.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-
-            do {
-                let (_, response) = try await session.data(for: fallbackRequest)
-                if let http = response as? HTTPURLResponse {
-                    return (200..<400).contains(http.statusCode)
-                }
-                return true
-            } catch {
-                return false
-            }
-        }
+        return bestCandidate
     }
 
     private func persistentCacheCandidateFiles() -> [URL] {
@@ -208,6 +174,34 @@ private actor SpotifyCanvasResolver {
         return deduplicated(files).prefix(260).map { $0 }
     }
 
+    private func newestFiles(in root: URL, limit: Int, filter: (URL) -> Bool) -> [URL] {
+        guard let enumerator = fileManager.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        var candidates: [(url: URL, modificationDate: Date)] = []
+
+        for case let fileURL as URL in enumerator {
+            guard filter(fileURL),
+                  let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey]),
+                  values.isRegularFile == true
+            else {
+                continue
+            }
+
+            candidates.append((fileURL, values.contentModificationDate ?? .distantPast))
+        }
+
+        return candidates
+            .sorted { $0.modificationDate > $1.modificationDate }
+            .prefix(limit)
+            .map(\.url)
+    }
+
     private func deduplicated(_ urls: [URL]) -> [URL] {
         var seen = Set<String>()
         var result: [URL] = []
@@ -244,34 +238,6 @@ private actor SpotifyCanvasResolver {
         }
 
         return bestCandidate
-    }
-
-    private func newestFiles(in root: URL, limit: Int, filter: (URL) -> Bool) -> [URL] {
-        guard let enumerator = fileManager.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return []
-        }
-
-        var candidates: [(url: URL, modificationDate: Date)] = []
-
-        for case let fileURL as URL in enumerator {
-            guard filter(fileURL),
-                  let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey]),
-                  values.isRegularFile == true
-            else {
-                continue
-            }
-
-            candidates.append((fileURL, values.contentModificationDate ?? .distantPast))
-        }
-
-        return candidates
-            .sorted { $0.modificationDate > $1.modificationDate }
-            .prefix(limit)
-            .map(\.url)
     }
 
     private func normalizedTrackURI(from identifier: String) -> String? {
@@ -369,6 +335,7 @@ private actor SpotifyCanvasResolver {
             for match in regex.matches(in: text, options: [], range: searchRange) {
                 guard let captureRange = Range(match.range, in: text) else { continue }
                 let rawValue = String(text[captureRange])
+
                 guard let url = normalizedCanvasURL(from: rawValue),
                       let score = scoreCanvasCandidate(
                         urlToken: rawValue,
@@ -482,14 +449,7 @@ private actor SpotifyCanvasResolver {
     }
 
     private func normalizedCanvasURL(from rawValue: String) -> URL? {
-        var cleaned = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "\"' \n\r\t"))
-
-        if let queryStart = cleaned.firstIndex(of: "?") {
-            let prefix = cleaned[..<queryStart]
-            if prefix.contains(".cnvs") {
-                cleaned = String(cleaned)
-            }
-        }
+        let cleaned = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "\"' \n\r\t"))
 
         if cleaned.hasPrefix("http") {
             return URL(string: cleaned)
@@ -563,8 +523,201 @@ private actor SpotifyCanvasResolver {
     }
 }
 
+private actor SpotifyCanvasVideoCache {
+    private struct CachedVideoEntry {
+        let localURL: URL
+        let expiresAt: Date
+    }
+
+    private let fileManager = FileManager.default
+    private let session: URLSession
+    private let cacheDirectory: URL
+    private var entries: [String: CachedVideoEntry] = [:]
+
+    init() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 12
+        configuration.timeoutIntervalForResource = 20
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        self.session = URLSession(configuration: configuration)
+
+        let baseCache = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches", isDirectory: true)
+
+        self.cacheDirectory = baseCache
+            .appendingPathComponent("Atoll", isDirectory: true)
+            .appendingPathComponent("SpotifyCanvasVideos", isDirectory: true)
+
+        try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+    }
+
+    func cachedLocalVideoURL(for trackKey: String) -> URL? {
+        guard let entry = entries[trackKey], entry.expiresAt > Date() else {
+            if let entry = entries[trackKey] {
+                try? fileManager.removeItem(at: entry.localURL)
+                entries.removeValue(forKey: trackKey)
+            }
+            return nil
+        }
+
+        guard fileManager.fileExists(atPath: entry.localURL.path) else {
+            entries.removeValue(forKey: trackKey)
+            return nil
+        }
+
+        return entry.localURL
+    }
+
+    func localVideoURL(for remoteURL: URL, trackKey: String) async -> URL? {
+        if let cached = cachedLocalVideoURL(for: trackKey) {
+            return cached
+        }
+
+        await cleanupExpiredFiles(keeping: trackKey)
+
+        let destinationURL = cacheDirectory.appendingPathComponent(safeFileName(for: trackKey) + ".mp4")
+
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            if await validateLocalVideo(at: destinationURL) {
+                entries[trackKey] = CachedVideoEntry(
+                    localURL: destinationURL,
+                    expiresAt: Date().addingTimeInterval(60 * 60 * 12)
+                )
+                return destinationURL
+            } else {
+                try? fileManager.removeItem(at: destinationURL)
+            }
+        }
+
+        do {
+            let (temporaryURL, response) = try await session.download(from: remoteURL)
+
+            if let http = response as? HTTPURLResponse,
+               !(200..<400).contains(http.statusCode) {
+                try? fileManager.removeItem(at: temporaryURL)
+                return nil
+            }
+
+            try? fileManager.removeItem(at: destinationURL)
+            try fileManager.moveItem(at: temporaryURL, to: destinationURL)
+
+            guard await validateLocalVideo(at: destinationURL) else {
+                try? fileManager.removeItem(at: destinationURL)
+                return nil
+            }
+
+            entries[trackKey] = CachedVideoEntry(
+                localURL: destinationURL,
+                expiresAt: Date().addingTimeInterval(60 * 60 * 12)
+            )
+
+            await enforceFileLimit(maxFiles: 12, keeping: trackKey)
+
+            return destinationURL
+        } catch {
+            return nil
+        }
+    }
+
+    func invalidate(trackKey: String) {
+        if let entry = entries[trackKey] {
+            try? fileManager.removeItem(at: entry.localURL)
+            entries.removeValue(forKey: trackKey)
+        }
+    }
+
+    func cleanupExpiredFiles(keeping activeTrackKey: String? = nil) async {
+        let now = Date()
+
+        for (key, entry) in entries {
+            if key != activeTrackKey && entry.expiresAt <= now {
+                try? fileManager.removeItem(at: entry.localURL)
+                entries.removeValue(forKey: key)
+            }
+        }
+
+        guard let enumerator = fileManager.enumerator(
+            at: cacheDirectory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey]),
+                  values.isRegularFile == true
+            else {
+                continue
+            }
+
+            if let modificationDate = values.contentModificationDate,
+               now.timeIntervalSince(modificationDate) > 60 * 60 * 24 * 2 {
+                try? fileManager.removeItem(at: fileURL)
+            }
+        }
+    }
+
+    private func enforceFileLimit(maxFiles: Int, keeping activeTrackKey: String?) async {
+        guard let enumerator = fileManager.enumerator(
+            at: cacheDirectory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        var files: [(url: URL, modificationDate: Date)] = []
+
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey]),
+                  values.isRegularFile == true
+            else {
+                continue
+            }
+
+            files.append((fileURL, values.contentModificationDate ?? .distantPast))
+        }
+
+        let sorted = files.sorted { $0.modificationDate > $1.modificationDate }
+        guard sorted.count > maxFiles else { return }
+
+        let activeName = activeTrackKey.map { safeFileName(for: $0) + ".mp4" }
+
+        for item in sorted.dropFirst(maxFiles) {
+            if item.url.lastPathComponent == activeName { continue }
+            try? fileManager.removeItem(at: item.url)
+        }
+    }
+
+    private func safeFileName(for trackKey: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let sanitizedScalars = trackKey.unicodeScalars.map { scalar -> Character in
+            allowed.contains(scalar) ? Character(scalar) : "_"
+        }
+        let value = String(sanitizedScalars)
+        return value.count > 120 ? String(value.prefix(120)) : value
+    }
+
+    private func validateLocalVideo(at fileURL: URL) async -> Bool {
+        let asset = AVURLAsset(url: fileURL)
+
+        do {
+            let isPlayable = try await asset.load(.isPlayable)
+            guard isPlayable else { return false }
+
+            let tracks = try await asset.loadTracks(withMediaType: .video)
+            guard !tracks.isEmpty else { return false }
+
+            let duration = try await asset.load(.duration)
+            return duration.seconds.isFinite && duration.seconds > 0
+        } catch {
+            return false
+        }
+    }
+}
+
 class SpotifyController: MediaControllerProtocol {
-    // MARK: - Properties
     @Published private var playbackState: PlaybackState = PlaybackState(
         bundleIdentifier: "com.spotify.client"
     )
@@ -581,19 +734,20 @@ class SpotifyController: MediaControllerProtocol {
 
     private let commandUpdateDelay: Duration = .milliseconds(25)
     private let canvasResolver = SpotifyCanvasResolver()
+    private let canvasVideoCache = SpotifyCanvasVideoCache()
 
     private var lastArtworkURL: String?
     private var artworkFetchTask: Task<Void, Never>?
     private var liveArtworkFetchTask: Task<Void, Never>?
 
-    // Only cache a positive canvas match here.
-    // We do not want a first nil result to block future retries for the same track.
     private var lastCanvasTrackKey: String?
 
     init() {
         setupPlaybackStateChangeObserver()
 
         Task {
+            await canvasVideoCache.cleanupExpiredFiles()
+
             if isActive() {
                 await updatePlaybackInfo()
             }
@@ -617,8 +771,6 @@ class SpotifyController: MediaControllerProtocol {
         artworkFetchTask?.cancel()
         liveArtworkFetchTask?.cancel()
     }
-
-    // MARK: - Protocol Implementation
 
     func play() async { await executeCommand("play") }
     func pause() async { await executeCommand("pause") }
@@ -677,14 +829,16 @@ class SpotifyController: MediaControllerProtocol {
             lastUpdated: Date()
         )
 
-        // Keep the old artwork until the new one arrives: this is your reliable background fallback.
         if artworkURL == lastArtworkURL, let existingArtwork = self.playbackState.artwork {
             state.artwork = existingArtwork
         }
 
-        // Reuse only positive canvas resolutions.
-        if canvasTrackKey == lastCanvasTrackKey, let existingLiveArtworkURL = self.playbackState.liveArtworkURL {
+        if canvasTrackKey == lastCanvasTrackKey,
+           let existingLiveArtworkURL = self.playbackState.liveArtworkURL {
             state.liveArtworkURL = existingLiveArtworkURL
+        } else if let cachedVideoURL = await canvasVideoCache.cachedLocalVideoURL(for: canvasTrackKey) {
+            state.liveArtworkURL = cachedVideoURL
+            lastCanvasTrackKey = canvasTrackKey
         } else {
             state.liveArtworkURL = nil
         }
@@ -732,8 +886,6 @@ class SpotifyController: MediaControllerProtocol {
         }
     }
 
-    // MARK: - Private Methods
-
     private func executeCommand(_ command: String) async {
         let script = "tell application \"Spotify\" to \(command)"
         try? await AppleScriptHelper.executeVoid(script)
@@ -761,7 +913,7 @@ class SpotifyController: MediaControllerProtocol {
         liveArtworkFetchTask = Task { [weak self] in
             guard let self else { return }
 
-            var resolvedURL: URL?
+            var resolvedLocalURL: URL?
             let attemptDelays: [Duration] = [
                 .milliseconds(250),
                 .milliseconds(600),
@@ -776,9 +928,18 @@ class SpotifyController: MediaControllerProtocol {
                     try? await Task.sleep(for: delay)
                 }
 
+                if let cachedURL = await self.canvasVideoCache.cachedLocalVideoURL(for: canvasTrackKey) {
+                    resolvedLocalURL = cachedURL
+                    break
+                }
+
                 let result = await self.canvasResolver.resolveCanvasURL(trackIdentifiers: trackIdentifiers)
-                if let url = result.url {
-                    resolvedURL = url
+                if let remoteURL = result.url,
+                   let localURL = await self.canvasVideoCache.localVideoURL(
+                    for: remoteURL,
+                    trackKey: canvasTrackKey
+                   ) {
+                    resolvedLocalURL = localURL
                     break
                 }
 
@@ -800,11 +961,10 @@ class SpotifyController: MediaControllerProtocol {
                 }
 
                 var updatedState = self.playbackState
-                updatedState.liveArtworkURL = resolvedURL
+                updatedState.liveArtworkURL = resolvedLocalURL
                 self.playbackState = updatedState
 
-                // Cache only positive matches, so nil never blocks retries later.
-                if resolvedURL != nil {
+                if resolvedLocalURL != nil {
                     self.lastCanvasTrackKey = canvasTrackKey
                 } else if self.lastCanvasTrackKey == canvasTrackKey {
                     self.lastCanvasTrackKey = nil
