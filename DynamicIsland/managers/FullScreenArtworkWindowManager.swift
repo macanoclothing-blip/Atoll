@@ -286,7 +286,9 @@ final class FullScreenArtworkWindowManager {
                 try? FileManager.default.removeItem(at: preparedVideoURL)
                 await MainActor.run {
                     guard self.wallpaperPresentationID == presentationID else { return }
+                    self.liveWallpaperPreparationTask = nil
                     print("[FullScreenArtworkWindowManager] Failed to prepare native live wallpaper: \(error)")
+                    self.restoreStaticArtworkPresentation()
                 }
             }
         }
@@ -317,6 +319,7 @@ final class FullScreenArtworkWindowManager {
             guard applyAerialWallpaperToPlist(assetID: slot.assetID) else {
                 restoreInstalledAerialOverride(override)
                 print("[FullScreenArtworkWindowManager] Failed to patch plist with Aerial asset")
+                restoreStaticArtworkPresentation()
                 return
             }
 
@@ -325,6 +328,7 @@ final class FullScreenArtworkWindowManager {
             print("[FullScreenArtworkWindowManager] Native live wallpaper applied with asset \(slot.assetID)")
         } catch {
             print("[FullScreenArtworkWindowManager] Failed to install native live wallpaper: \(error)")
+            restoreStaticArtworkPresentation()
         }
     }
 
@@ -865,10 +869,12 @@ final class FullScreenArtworkWindowManager {
 
         do {
             try await exportVideoForAerialWallpaper(from: sourceURL, outputURL: outputURL)
+            try await validatePreparedVideoForWallpaper(at: outputURL)
             return
         } catch {
             if sourceURL.isFileURL {
                 try fileManager.copyItem(at: sourceURL, to: outputURL)
+                try await validatePreparedVideoForWallpaper(at: outputURL)
                 return
             }
 
@@ -880,6 +886,55 @@ final class FullScreenArtworkWindowManager {
             let (downloadedURL, _) = try await URLSession.shared.download(from: sourceURL)
             try? fileManager.removeItem(at: outputURL)
             try fileManager.moveItem(at: downloadedURL, to: outputURL)
+            try await validatePreparedVideoForWallpaper(at: outputURL)
+        }
+    }
+
+    private nonisolated static func validatePreparedVideoForWallpaper(at url: URL) async throws {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: url.path) else {
+            throw NSError(
+                domain: "AtollLiveWallpaper",
+                code: 6,
+                userInfo: [NSLocalizedDescriptionKey: "Prepared live wallpaper file is missing"]
+            )
+        }
+
+        let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        guard fileSize > 0 else {
+            throw NSError(
+                domain: "AtollLiveWallpaper",
+                code: 7,
+                userInfo: [NSLocalizedDescriptionKey: "Prepared live wallpaper file is empty"]
+            )
+        }
+
+        let asset = AVURLAsset(url: url)
+        let isPlayable = try await asset.load(.isPlayable)
+        guard isPlayable else {
+            throw NSError(
+                domain: "AtollLiveWallpaper",
+                code: 8,
+                userInfo: [NSLocalizedDescriptionKey: "Prepared live wallpaper is not playable"]
+            )
+        }
+
+        let tracks = try await asset.load(.tracks)
+        guard tracks.contains(where: { $0.mediaType == .video }) else {
+            throw NSError(
+                domain: "AtollLiveWallpaper",
+                code: 9,
+                userInfo: [NSLocalizedDescriptionKey: "Prepared live wallpaper has no video track"]
+            )
+        }
+
+        let duration = try await asset.load(.duration)
+        guard duration.isValid, !duration.isIndefinite, duration.seconds.isFinite, duration.seconds > 0.1 else {
+            throw NSError(
+                domain: "AtollLiveWallpaper",
+                code: 10,
+                userInfo: [NSLocalizedDescriptionKey: "Prepared live wallpaper has an invalid duration"]
+            )
         }
     }
 

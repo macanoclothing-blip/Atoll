@@ -25,9 +25,20 @@ import Combine
 import SwiftUI
 
 private actor SpotifyCanvasResolver {
+    struct ResolutionResult {
+        let url: URL?
+        let source: Source?
+    }
+
+    enum Source: String {
+        case persistentCache
+        case indexedDB
+    }
+
     private struct CanvasCandidate {
         let url: URL
         let score: Int
+        let source: Source
     }
 
     private struct IdentifierMatch {
@@ -36,23 +47,51 @@ private actor SpotifyCanvasResolver {
         let precedesURL: Bool
     }
 
-    private let fileManager = FileManager.default
-    private var resolvedCache: [String: URL] = [:]
+    private struct CacheEntry {
+        let url: URL?
+        let expiresAt: Date
+    }
 
-    func resolveCanvasURL(trackIdentifiers: [String]) async -> URL? {
+    private let fileManager = FileManager.default
+    private let session: URLSession
+    private var resolvedCache: [String: CacheEntry] = [:]
+
+    init() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 3
+        configuration.timeoutIntervalForResource = 5
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        self.session = URLSession(configuration: configuration)
+    }
+
+    func resolveCanvasURL(trackIdentifiers: [String]) async -> ResolutionResult {
         let normalizedIdentifiers = normalized(trackIdentifiers)
-        guard !normalizedIdentifiers.isEmpty else { return nil }
+        guard !normalizedIdentifiers.isEmpty else {
+            return ResolutionResult(url: nil, source: nil)
+        }
 
         let cacheKey = normalizedIdentifiers.sorted().joined(separator: "|")
-        if let cached = resolvedCache[cacheKey] {
-            return cached
+        let now = Date()
+
+        if let cached = resolvedCache[cacheKey], cached.expiresAt > now {
+            return ResolutionResult(url: cached.url, source: cached.url == nil ? nil : .indexedDB)
         }
 
-        let result = searchCanvasURL(trackIdentifiers: normalizedIdentifiers)
-        if let result {
-            resolvedCache[cacheKey] = result
+        let candidate = await searchCanvasCandidate(trackIdentifiers: normalizedIdentifiers)
+        if let candidate {
+            resolvedCache[cacheKey] = CacheEntry(
+                url: candidate.url,
+                expiresAt: now.addingTimeInterval(60 * 20)
+            )
+            return ResolutionResult(url: candidate.url, source: candidate.source)
         }
-        return result
+
+        // Negative cache is short-lived so we do not permanently "freeze" nil.
+        resolvedCache[cacheKey] = CacheEntry(
+            url: nil,
+            expiresAt: now.addingTimeInterval(12)
+        )
+        return ResolutionResult(url: nil, source: nil)
     }
 
     private func normalized(_ identifiers: [String]) -> [String] {
@@ -63,12 +102,12 @@ private actor SpotifyCanvasResolver {
         ))
     }
 
-    private func searchCanvasURL(trackIdentifiers: [String]) -> URL? {
+    private func searchCanvasCandidate(trackIdentifiers: [String]) async -> CanvasCandidate? {
         var bestCandidate = searchPersistentCache(trackIdentifiers: trackIdentifiers)
 
         for (fileIndex, fileURL) in indexedDBCandidateFiles().enumerated() {
             guard let data = try? Data(contentsOf: fileURL, options: [.mappedIfSafe]) else { continue }
-            let sourceBias = max(0, 80 - fileIndex)
+            let sourceBias = max(0, 100 - fileIndex)
 
             if let candidate = bestIndexedDBCanvasCandidate(
                 from: data,
@@ -79,50 +118,119 @@ private actor SpotifyCanvasResolver {
             }
         }
 
-        return bestCandidate?.url
+        guard let bestCandidate else { return nil }
+        let isReachable = await validateCanvasURL(bestCandidate.url)
+        return isReachable ? bestCandidate : nil
+    }
+
+    private func validateCanvasURL(_ url: URL) async -> Bool {
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+
+        do {
+            let (_, response) = try await session.data(for: request)
+            if let http = response as? HTTPURLResponse {
+                return (200..<400).contains(http.statusCode)
+            }
+            return true
+        } catch {
+            // Some CDN configurations may reject HEAD. Retry with a tiny GET.
+            var fallbackRequest = URLRequest(url: url)
+            fallbackRequest.httpMethod = "GET"
+            fallbackRequest.setValue("bytes=0-0", forHTTPHeaderField: "Range")
+
+            do {
+                let (_, response) = try await session.data(for: fallbackRequest)
+                if let http = response as? HTTPURLResponse {
+                    return (200..<400).contains(http.statusCode)
+                }
+                return true
+            } catch {
+                return false
+            }
+        }
     }
 
     private func persistentCacheCandidateFiles() -> [URL] {
         let home = fileManager.homeDirectoryForCurrentUser
-        let persistentCacheRoot = home.appendingPathComponent(
-            "Library/Application Support/Spotify/PersistentCache/Users",
-            isDirectory: true
-        )
+        let roots = [
+            home.appendingPathComponent(
+                "Library/Application Support/Spotify/PersistentCache/Users",
+                isDirectory: true
+            ),
+            home.appendingPathComponent(
+                "Library/Application Support/Spotify/PersistentCache",
+                isDirectory: true
+            )
+        ]
 
-        return newestFiles(in: persistentCacheRoot, limit: 160) { url in
-            url.pathExtension.lowercased() == "ldb"
+        var files: [URL] = []
+        for root in roots {
+            files += newestFiles(in: root, limit: 180) { url in
+                let ext = url.pathExtension.lowercased()
+                return ext == "ldb" || ext == "log"
+            }
         }
+
+        return deduplicated(files).prefix(220).map { $0 }
     }
 
     private func indexedDBCandidateFiles() -> [URL] {
         let home = fileManager.homeDirectoryForCurrentUser
-        let blobRoot = home.appendingPathComponent(
-            "Library/Caches/com.spotify.client/Default/IndexedDB/https_xpui.app.spotify.com_0.indexeddb.blob",
-            isDirectory: true
-        )
-        let levelDBRoot = home.appendingPathComponent(
-            "Library/Caches/com.spotify.client/Default/IndexedDB/https_xpui.app.spotify.com_0.indexeddb.leveldb",
-            isDirectory: true
-        )
+        let roots = [
+            home.appendingPathComponent(
+                "Library/Caches/com.spotify.client/Default/IndexedDB/https_xpui.app.spotify.com_0.indexeddb.blob",
+                isDirectory: true
+            ),
+            home.appendingPathComponent(
+                "Library/Caches/com.spotify.client/Default/IndexedDB/https_xpui.app.spotify.com_0.indexeddb.leveldb",
+                isDirectory: true
+            ),
+            home.appendingPathComponent(
+                "Library/Application Support/Spotify/Browser/Default/IndexedDB/https_xpui.app.spotify.com_0.indexeddb.blob",
+                isDirectory: true
+            ),
+            home.appendingPathComponent(
+                "Library/Application Support/Spotify/Browser/Default/IndexedDB/https_xpui.app.spotify.com_0.indexeddb.leveldb",
+                isDirectory: true
+            )
+        ]
 
-        return newestFiles(in: blobRoot, limit: 120) { _ in
-            true
-        } + newestFiles(in: levelDBRoot, limit: 60) { url in
-            let name = url.lastPathComponent.lowercased()
-            return name.hasSuffix(".ldb") || name.hasSuffix(".log") || name.hasPrefix("manifest")
+        var files: [URL] = []
+        for root in roots {
+            files += newestFiles(in: root, limit: 140) { url in
+                let name = url.lastPathComponent.lowercased()
+                let ext = url.pathExtension.lowercased()
+                return name.hasPrefix("manifest") || ext == "ldb" || ext == "log" || ext == "blob" || ext.isEmpty
+            }
         }
+
+        return deduplicated(files).prefix(260).map { $0 }
+    }
+
+    private func deduplicated(_ urls: [URL]) -> [URL] {
+        var seen = Set<String>()
+        var result: [URL] = []
+
+        for url in urls {
+            let key = url.standardizedFileURL.path
+            if seen.insert(key).inserted {
+                result.append(url)
+            }
+        }
+
+        return result
     }
 
     private func searchPersistentCache(trackIdentifiers: [String]) -> CanvasCandidate? {
-        let trackURIs = trackIdentifiers
-            .compactMap(normalizedTrackURI)
-
+        let trackURIs = trackIdentifiers.compactMap(normalizedTrackURI)
         guard !trackURIs.isEmpty else { return nil }
+
         var bestCandidate: CanvasCandidate?
 
         for (fileIndex, fileURL) in persistentCacheCandidateFiles().enumerated() {
             guard let data = try? Data(contentsOf: fileURL, options: [.mappedIfSafe]) else { continue }
-            let sourceBias = max(160, 260 - fileIndex)
+            let sourceBias = max(180, 320 - fileIndex)
 
             for trackURI in trackURIs {
                 if let candidate = extractPersistentCanvasCandidate(
@@ -195,7 +303,8 @@ private actor SpotifyCanvasResolver {
             if let candidate = bestCanvasCandidate(
                 in: snippet,
                 trackIdentifiers: [trackURI],
-                sourceBias: sourceBias
+                sourceBias: sourceBias,
+                source: .persistentCache
             ) {
                 bestCandidate = preferredCandidate(bestCandidate, candidate)
             }
@@ -211,24 +320,28 @@ private actor SpotifyCanvasResolver {
         trackIdentifiers: [String],
         sourceBias: Int
     ) -> CanvasCandidate? {
-        guard let canvasSuffixData = ".cnvs.mp4".data(using: .utf8) else { return nil }
+        let anchors = [".cnvs.mp4", ".cnvs", "canvaz.scdn.co", "VIDEO_LOOPING", "canvas"]
 
-        var searchRange = data.startIndex..<data.endIndex
         var bestCandidate: CanvasCandidate?
+        for anchor in anchors {
+            guard let anchorData = anchor.data(using: .utf8) else { continue }
+            var searchRange = data.startIndex..<data.endIndex
 
-        while let suffixRange = data.range(of: canvasSuffixData, options: [], in: searchRange) {
-            let snippetRange = recordRange(in: data, around: suffixRange)
-            let snippet = String(decoding: data[snippetRange], as: UTF8.self)
+            while let anchorRange = data.range(of: anchorData, options: [], in: searchRange) {
+                let snippetRange = recordRange(in: data, around: anchorRange, radius: 4096)
+                let snippet = String(decoding: data[snippetRange], as: UTF8.self)
 
-            if let candidate = bestCanvasCandidate(
-                in: snippet,
-                trackIdentifiers: trackIdentifiers,
-                sourceBias: sourceBias
-            ) {
-                bestCandidate = preferredCandidate(bestCandidate, candidate)
+                if let candidate = bestCanvasCandidate(
+                    in: snippet,
+                    trackIdentifiers: trackIdentifiers,
+                    sourceBias: sourceBias,
+                    source: .indexedDB
+                ) {
+                    bestCandidate = preferredCandidate(bestCandidate, candidate)
+                }
+
+                searchRange = anchorRange.upperBound..<data.endIndex
             }
-
-            searchRange = suffixRange.upperBound..<data.endIndex
         }
 
         return bestCandidate
@@ -237,11 +350,12 @@ private actor SpotifyCanvasResolver {
     private func bestCanvasCandidate(
         in text: String,
         trackIdentifiers: [String],
-        sourceBias: Int
+        sourceBias: Int,
+        source: Source
     ) -> CanvasCandidate? {
         let patterns = [
-            #"https?://[^"'\\s]+\.cnvs\.mp4"#,
-            #"upload/[A-Za-z0-9/_\-.]+\.cnvs\.mp4"#
+            #"https?://[^"'\\s]+\.cnvs(?:\.[A-Za-z0-9]+)?(?:\?[^"'\\s]*)?"#,
+            #"upload/[A-Za-z0-9/_\-.]+\.cnvs(?:\.[A-Za-z0-9]+)?(?:\?[^"'\\s]*)?"#
         ]
 
         var bestCandidate: CanvasCandidate?
@@ -266,7 +380,7 @@ private actor SpotifyCanvasResolver {
                     continue
                 }
 
-                let candidate = CanvasCandidate(url: url, score: score)
+                let candidate = CanvasCandidate(url: url, score: score, source: source)
                 bestCandidate = preferredCandidate(bestCandidate, candidate)
             }
         }
@@ -293,15 +407,11 @@ private actor SpotifyCanvasResolver {
             var score = sourceBias + match.baseScore - match.distance
             score += match.precedesURL ? 120 : -30
 
-            if text.contains("associationsV3") {
-                score += 35
-            }
-            if text.contains("VIDEO_LOOPING") {
-                score += 20
-            }
-            if text.localizedCaseInsensitiveContains("canvas") {
-                score += 15
-            }
+            if text.contains("associationsV3") { score += 45 }
+            if text.contains("VIDEO_LOOPING") { score += 25 }
+            if text.localizedCaseInsensitiveContains("canvas") { score += 20 }
+            if text.localizedCaseInsensitiveContains("canvaz") { score += 25 }
+            if text.localizedCaseInsensitiveContains("trackmetadata") { score += 25 }
 
             if let existing = bestScore {
                 bestScore = max(existing, score)
@@ -322,8 +432,8 @@ private actor SpotifyCanvasResolver {
         guard !identifier.isEmpty else { return nil }
 
         let isTrackURI = identifier.hasPrefix("spotify:track:")
-        let maxDistance = isTrackURI ? 1_400 : 420
-        let baseScore = isTrackURI ? 1_500 : 950
+        let maxDistance = isTrackURI ? 1800 : 720
+        let baseScore = isTrackURI ? 1600 : 1000
 
         var bestMatch: IdentifierMatch?
         var searchRange = text.startIndex..<text.endIndex
@@ -372,24 +482,39 @@ private actor SpotifyCanvasResolver {
     }
 
     private func normalizedCanvasURL(from rawValue: String) -> URL? {
-        if rawValue.hasPrefix("http") {
-            return URL(string: rawValue)
+        var cleaned = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "\"' \n\r\t"))
+
+        if let queryStart = cleaned.firstIndex(of: "?") {
+            let prefix = cleaned[..<queryStart]
+            if prefix.contains(".cnvs") {
+                cleaned = String(cleaned)
+            }
         }
 
-        if rawValue.hasPrefix("upload/") {
-            return URL(string: "https://canvaz.scdn.co/\(rawValue)")
+        if cleaned.hasPrefix("http") {
+            return URL(string: cleaned)
+        }
+
+        if cleaned.hasPrefix("upload/") {
+            return URL(string: "https://canvaz.scdn.co/\(cleaned)")
         }
 
         return nil
     }
 
-    private func recordRange(in data: Data, around anchor: Range<Data.Index>) -> Range<Data.Index> {
-        let lowerFallback = max(data.startIndex, anchor.lowerBound - 2_048)
-        let upperFallback = min(data.endIndex, anchor.upperBound + 2_048)
+    private func recordRange(
+        in data: Data,
+        around anchor: Range<Data.Index>,
+        radius: Int = 2048
+    ) -> Range<Data.Index> {
+        let lowerFallback = max(data.startIndex, anchor.lowerBound - radius)
+        let upperFallback = min(data.endIndex, anchor.upperBound + radius)
         let markers = [
             Data("xmeta#cache#".utf8),
             Data("__typename".utf8),
-            Data("associationsV3".utf8)
+            Data("associationsV3".utf8),
+            Data("VIDEO_LOOPING".utf8),
+            Data("canvas".utf8)
         ]
 
         var lowerBound = lowerFallback
@@ -443,89 +568,93 @@ class SpotifyController: MediaControllerProtocol {
     @Published private var playbackState: PlaybackState = PlaybackState(
         bundleIdentifier: "com.spotify.client"
     )
-    
+
     var playbackStatePublisher: AnyPublisher<PlaybackState, Never> {
         $playbackState.eraseToAnyPublisher()
     }
-    
-    var isWorking: Bool {
-        return true  // Spotify controller always works
-    }
-    
-    private var notificationTask: Task<Void, Never>?
-    
-    // Constant for time between command and update
-    private let commandUpdateDelay: Duration = .milliseconds(25)
 
+    var isWorking: Bool {
+        true
+    }
+
+    private var notificationTask: Task<Void, Never>?
+
+    private let commandUpdateDelay: Duration = .milliseconds(25)
     private let canvasResolver = SpotifyCanvasResolver()
+
     private var lastArtworkURL: String?
     private var artworkFetchTask: Task<Void, Never>?
     private var liveArtworkFetchTask: Task<Void, Never>?
+
+    // Only cache a positive canvas match here.
+    // We do not want a first nil result to block future retries for the same track.
     private var lastCanvasTrackKey: String?
-    
+
     init() {
         setupPlaybackStateChangeObserver()
+
         Task {
             if isActive() {
                 await updatePlaybackInfo()
             }
         }
     }
-    
+
     private func setupPlaybackStateChangeObserver() {
         notificationTask = Task { @Sendable [weak self] in
             let notifications = DistributedNotificationCenter.default().notifications(
                 named: NSNotification.Name("com.spotify.client.PlaybackStateChanged")
             )
-            
+
             for await _ in notifications {
                 await self?.updatePlaybackInfo()
             }
         }
     }
-    
+
     deinit {
         notificationTask?.cancel()
         artworkFetchTask?.cancel()
         liveArtworkFetchTask?.cancel()
     }
-    
+
     // MARK: - Protocol Implementation
+
     func play() async { await executeCommand("play") }
     func pause() async { await executeCommand("pause") }
     func togglePlay() async { await executeCommand("playpause") }
     func nextTrack() async { await executeCommand("next track") }
-    
+
     func previousTrack() async {
         await executeAndRefresh("previous track")
     }
-    
+
     func seek(to time: Double) async {
         await executeAndRefresh("set player position to \(time)")
     }
-    
+
     func toggleShuffle() async {
         await executeAndRefresh("set shuffling to not shuffling")
     }
-    
+
     func toggleRepeat() async {
         await executeAndRefresh("set repeating to not repeating")
     }
-    
+
     func isActive() -> Bool {
         NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == playbackState.bundleIdentifier }
     }
-    
+
     func updatePlaybackInfo() async {
         guard let descriptor = try? await fetchPlaybackInfoAsync() else { return }
         guard descriptor.numberOfItems >= 11 else { return }
-        
+
         let isPlaying = descriptor.atIndex(1)?.booleanValue ?? false
         let currentTrack = descriptor.atIndex(2)?.stringValue ?? "Unknown"
         let currentTrackArtist = descriptor.atIndex(3)?.stringValue ?? "Unknown"
         let currentTrackAlbum = descriptor.atIndex(4)?.stringValue ?? "Unknown"
         let currentTime = descriptor.atIndex(5)?.doubleValue ?? 0
-        let duration = (descriptor.atIndex(6)?.doubleValue ?? 0)/1000
+        let duration = (descriptor.atIndex(6)?.doubleValue ?? 0) / 1000
         let isShuffled = descriptor.atIndex(7)?.booleanValue ?? false
         let isRepeating = descriptor.atIndex(8)?.booleanValue ?? false
         let artworkURL = descriptor.atIndex(9)?.stringValue ?? ""
@@ -533,7 +662,7 @@ class SpotifyController: MediaControllerProtocol {
         let spotifyURLString = descriptor.atIndex(11)?.stringValue ?? ""
         let trackIdentifiers = trackIdentifiers(trackID: trackID, spotifyURLString: spotifyURLString)
         let canvasTrackKey = trackIdentifiers.sorted().joined(separator: "|")
-        
+
         var state = PlaybackState(
             bundleIdentifier: "com.spotify.client",
             isPlaying: isPlaying,
@@ -548,15 +677,20 @@ class SpotifyController: MediaControllerProtocol {
             lastUpdated: Date()
         )
 
+        // Keep the old artwork until the new one arrives: this is your reliable background fallback.
         if artworkURL == lastArtworkURL, let existingArtwork = self.playbackState.artwork {
             state.artwork = existingArtwork
         }
 
-        if canvasTrackKey == lastCanvasTrackKey {
-            state.liveArtworkURL = self.playbackState.liveArtworkURL
+        // Reuse only positive canvas resolutions.
+        if canvasTrackKey == lastCanvasTrackKey, let existingLiveArtworkURL = self.playbackState.liveArtworkURL {
+            state.liveArtworkURL = existingLiveArtworkURL
+        } else {
+            state.liveArtworkURL = nil
         }
 
         playbackState = state
+
         scheduleCanvasFetchIfNeeded(
             for: state,
             trackIdentifiers: trackIdentifiers,
@@ -597,9 +731,9 @@ class SpotifyController: MediaControllerProtocol {
             }
         }
     }
-    
-// MARK: - Private Methods
-    
+
+    // MARK: - Private Methods
+
     private func executeCommand(_ command: String) async {
         let script = "tell application \"Spotify\" to \(command)"
         try? await AppleScriptHelper.executeVoid(script)
@@ -627,20 +761,33 @@ class SpotifyController: MediaControllerProtocol {
         liveArtworkFetchTask = Task { [weak self] in
             guard let self else { return }
 
-            var liveArtworkURL: URL?
-            for attempt in 0..<6 {
-                liveArtworkURL = await self.canvasResolver.resolveCanvasURL(trackIdentifiers: trackIdentifiers)
-                if liveArtworkURL != nil || Task.isCancelled {
+            var resolvedURL: URL?
+            let attemptDelays: [Duration] = [
+                .milliseconds(250),
+                .milliseconds(600),
+                .seconds(1),
+                .seconds(2),
+                .seconds(3),
+                .seconds(5)
+            ]
+
+            for (index, delay) in attemptDelays.enumerated() {
+                if index > 0 {
+                    try? await Task.sleep(for: delay)
+                }
+
+                let result = await self.canvasResolver.resolveCanvasURL(trackIdentifiers: trackIdentifiers)
+                if let url = result.url {
+                    resolvedURL = url
                     break
                 }
 
-                if attempt < 5 {
-                    try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled {
+                    return
                 }
             }
 
             guard !Task.isCancelled else { return }
-            let resolvedLiveArtworkURL = liveArtworkURL
 
             await MainActor.run { [weak self] in
                 guard let self = self else { return }
@@ -653,9 +800,16 @@ class SpotifyController: MediaControllerProtocol {
                 }
 
                 var updatedState = self.playbackState
-                updatedState.liveArtworkURL = resolvedLiveArtworkURL
+                updatedState.liveArtworkURL = resolvedURL
                 self.playbackState = updatedState
-                self.lastCanvasTrackKey = canvasTrackKey
+
+                // Cache only positive matches, so nil never blocks retries later.
+                if resolvedURL != nil {
+                    self.lastCanvasTrackKey = canvasTrackKey
+                } else if self.lastCanvasTrackKey == canvasTrackKey {
+                    self.lastCanvasTrackKey = nil
+                }
+
                 self.liveArtworkFetchTask = nil
             }
         }
@@ -719,7 +873,7 @@ class SpotifyController: MediaControllerProtocol {
 
         return nil
     }
-    
+
     private func fetchPlaybackInfoAsync() async throws -> NSAppleEventDescriptor? {
         let script = """
         tell application "Spotify"
@@ -742,7 +896,7 @@ class SpotifyController: MediaControllerProtocol {
             end try
         end tell
         """
-        
+
         return try await AppleScriptHelper.execute(script)
     }
 }
