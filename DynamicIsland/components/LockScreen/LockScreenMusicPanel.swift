@@ -399,7 +399,11 @@ struct LockScreenMusicPanel: View {
             }
         }
 
-        FullScreenArtworkWindowManager.shared.show(artwork: artwork, videoURL: isAppleMusicActive && fullscreenVideoArtwork ? videoURL : nil)
+        FullScreenArtworkWindowManager.shared.show(
+            artwork: artwork,
+            videoURL: fullscreenVideoArtwork ? videoURL : nil,
+            allowLiveWallpaper: fullscreenVideoArtwork
+        )
     }
 
     private func registerInteraction() {
