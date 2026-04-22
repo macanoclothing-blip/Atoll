@@ -56,6 +56,7 @@ struct LockScreenMusicPanel: View {
     @Default(.lockScreenMusicLiquidGlassVariant) private var musicGlassVariant
     @Default(.lockScreenShowAppIcon) var showAppIcon
     @Default(.lockScreenPanelShowsBorder) var showPanelBorder
+    @Default(.lockScreenMusicUsesEnhancedLiquidBorder) private var useEnhancedLiquidBorder
     @Default(.lockScreenPanelUsesBlur) var enableBlur
     @Default(.showMediaOutputControl) private var showMediaOutputControl
     @Default(.showShuffleAndRepeat) private var showShuffleAndRepeat
@@ -113,6 +114,10 @@ struct LockScreenMusicPanel: View {
     private var usesLiquidGlass: Bool {
         usesCustomLiquidGlass || usesStandardLiquidGlass
     }
+
+    private var usesEnhancedCustomLiquidBorder: Bool {
+        usesCustomLiquidGlass && useEnhancedLiquidBorder
+    }
     
     var body: some View {
         if isActive && musicManager.hasActiveSession {
@@ -131,9 +136,8 @@ struct LockScreenMusicPanel: View {
         .frame(width: currentSize.width, height: currentSize.height, alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous))
         .overlay {
-            if showPanelBorder && !usesLiquidGlass {
-                RoundedRectangle(cornerRadius: panelCornerRadius)
-                    .stroke(Color.white.opacity(0.35), lineWidth: 1.4)
+            if showPanelBorder {
+                panelBorderOverlay
             }
         }
         .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
@@ -1075,6 +1079,53 @@ struct LockScreenMusicPanel: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var panelBorderOverlay: some View {
+        if usesEnhancedCustomLiquidBorder {
+            ZStack {
+                RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                    .stroke(
+                        Color.white.opacity(0.22),
+                        lineWidth: 1.05
+                    )
+
+                RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                    .inset(by: 0.85)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.28),
+                                Color.white.opacity(0.1),
+                                Color.black.opacity(0.18)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.9
+                    )
+
+                RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                    .inset(by: 1.55)
+                    .stroke(
+                        Color.black.opacity(0.16),
+                        lineWidth: 0.55
+                    )
+            }
+            .allowsHitTesting(false)
+        } else if usesLiquidGlass {
+            RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                .stroke(
+                    Color.white.opacity(usesCustomLiquidGlass ? 0.15 : 0.14),
+                    lineWidth: usesCustomLiquidGlass ? 0.95 : 0.9
+                )
+                .allowsHitTesting(false)
+        } else {
+            RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.35), lineWidth: 1.4)
+                .allowsHitTesting(false)
+        }
     }
 
     private func albumArtImage(size: CGFloat, cornerRadius: CGFloat) -> some View {

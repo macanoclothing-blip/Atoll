@@ -43409,6 +43409,9 @@
         }
       }
     },
+    "Use enhanced liquid border" : {
+
+    },
     "Use MacBook icon when on battery" : {
       "localizations" : {
         "ko" : {
