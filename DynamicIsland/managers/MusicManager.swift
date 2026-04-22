@@ -1558,7 +1558,6 @@ private struct AlbumArtFlipModifier: ViewModifier {
         // Use a small tolerance to avoid flickering exactly at 90°/270°.
         if cos > 0.001 { return 1 }
         if cos < -0.001 { return -1 }
-        // At the exact edge, prefer the side we're animating toward.
         return degrees.truncatingRemainder(dividingBy: 360) >= 0 ? -1 : 1
     }
 }
