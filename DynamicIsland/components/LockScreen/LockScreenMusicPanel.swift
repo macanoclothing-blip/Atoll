@@ -67,6 +67,7 @@ struct LockScreenMusicPanel: View {
     @Default(.lockScreenMusicAlbumParallaxEnabled) private var lockScreenParallaxEnabled
     @Default(.lockScreenMusicPanelWidth) private var collapsedPanelWidth
     @Default(.lockScreenMusicFullscreenArtworkEnabled) private var fullscreenArtworkEnabled
+    @Default(.lockScreenKeepAlbumArtVisibleDuringFullscreenArtwork) private var keepAlbumArtVisibleDuringFullscreenArtwork
     @Default(.lockScreenMusicFullscreenVideoArtwork) private var fullscreenVideoArtwork
 
     init(animator: LockScreenPanelAnimator) {
@@ -304,7 +305,7 @@ struct LockScreenMusicPanel: View {
 
     private func albumArtButton(size: CGFloat, cornerRadius: CGFloat) -> some View {
         ZStack(alignment: .bottomTrailing) {
-            if isArtworkFullscreen {
+            if isArtworkFullscreen && !keepAlbumArtVisibleDuringFullscreenArtwork {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(Color.white.opacity(0.06))
                     .overlay(
@@ -325,8 +326,11 @@ struct LockScreenMusicPanel: View {
                 }
             }
         }
-        .albumArtFlip(angle: isArtworkFullscreen ? 0 : musicManager.flipAngle)
-        .parallax3D(enableOverride: lockScreenParallaxEnabled && !isArtworkFullscreen, suspended: isParallaxSuspended)
+        .albumArtFlip(angle: isArtworkFullscreen && !keepAlbumArtVisibleDuringFullscreenArtwork ? 0 : musicManager.flipAngle)
+        .parallax3D(
+            enableOverride: lockScreenParallaxEnabled && (!isArtworkFullscreen || keepAlbumArtVisibleDuringFullscreenArtwork),
+            suspended: isParallaxSuspended
+        )
         .frame(width: size)
         .background(albumArtBackground(cornerRadius: cornerRadius))
         .clipShape(RoundedRectangle(cornerRadius: musicManager.albumArt.size.width/musicManager.albumArt.size.height > 1.0 ? appIconCornerRadius/3 : appIconCornerRadius, style: .continuous))
