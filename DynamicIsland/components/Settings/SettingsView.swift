@@ -2450,6 +2450,7 @@ struct Media: View {
     @Default(.lockScreenGlassStyle) private var lockScreenGlassStyle
     @Default(.lockScreenGlassCustomizationMode) private var lockScreenGlassCustomizationMode
     @Default(.lockScreenMusicAlbumParallaxEnabled) private var lockScreenMusicAlbumParallaxEnabled
+    @Default(.lockScreenMusicFullscreenArtworkEnabled) private var lockScreenMusicFullscreenArtworkEnabled
     @Default(.showStandardMediaControls) private var showStandardMediaControls
     @Default(.autoHideInactiveNotchMediaPlayer) private var autoHideInactiveNotchMediaPlayer
     @Default(.parallaxEffectIntensity) private var parallaxEffectIntensity
@@ -2695,6 +2696,22 @@ struct Media: View {
                     unavailableBlurRow
                         .opacity(enableLockScreenMediaWidget ? 1 : 0.5)
                         .settingsHighlight(id: highlightID("Enable media panel blur"))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Defaults.Toggle(key: .lockScreenMusicFullscreenArtworkEnabled) {
+                        Text("Fullscreen artwork on right-click")
+                    }
+                    .disabled(!enableLockScreenMediaWidget)
+                    .settingsHighlight(id: highlightID("Fullscreen artwork on right-click"))
+                    Defaults.Toggle(key: .lockScreenKeepAlbumArtVisibleDuringFullscreenArtwork) {
+                        Text("Keep album art visible during fullscreen artwork")
+                    }
+                    .disabled(!enableLockScreenMediaWidget || !lockScreenMusicFullscreenArtworkEnabled)
+                    .settingsHighlight(id: highlightID("Keep album art visible during fullscreen artwork"))
+                    Text("Right-click the album art on the lock screen to set it as the wallpaper. Right-click again or click the background to restore the original wallpaper. The swap is temporary and leaves no trace in System Settings.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             } header: {
                 Text("Lock Screen Integration")
@@ -4576,6 +4593,7 @@ struct LockScreenSettings: View {
     @Default(.lockScreenTimerGlassCustomizationMode) private var lockScreenTimerGlassCustomizationMode
     @Default(.lockScreenTimerWidgetUsesBlur) private var timerGlassModeIsGlass
     @Default(.enableLockScreenMediaWidget) private var enableLockScreenMediaWidget
+    @Default(.lockScreenMusicFullscreenArtworkEnabled) private var lockScreenMusicFullscreenArtworkEnabled
     @Default(.enableLockScreenTimerWidget) private var enableLockScreenTimerWidget
     @Default(.enableLockScreenWeatherWidget) private var enableLockScreenWeatherWidget
     @Default(.enableLockScreenFocusWidget) private var enableLockScreenFocusWidget
@@ -4808,6 +4826,22 @@ struct LockScreenSettings: View {
                     blurSettingUnavailableRow
                         .opacity(enableLockScreenMediaWidget ? 1 : 0.5)
                         .settingsHighlight(id: highlightID("Enable media panel blur"))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Defaults.Toggle(key: .lockScreenMusicFullscreenArtworkEnabled) {
+                        Text("Fullscreen artwork on right-click")
+                    }
+                    .disabled(!enableLockScreenMediaWidget)
+                    .settingsHighlight(id: highlightID("Fullscreen artwork on right-click"))
+                    Defaults.Toggle(key: .lockScreenKeepAlbumArtVisibleDuringFullscreenArtwork) {
+                        Text("Keep album art visible during fullscreen artwork")
+                    }
+                    .disabled(!enableLockScreenMediaWidget || !lockScreenMusicFullscreenArtworkEnabled)
+                    .settingsHighlight(id: highlightID("Keep album art visible during fullscreen artwork"))
+                    Text("Right-click the album art on the lock screen to set it as the wallpaper. Right-click again or click the background to restore the original wallpaper. The swap is temporary and leaves no trace in System Settings.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if !showStandardMediaControls {
