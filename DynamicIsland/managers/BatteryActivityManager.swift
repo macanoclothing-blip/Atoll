@@ -202,7 +202,7 @@ class BatteryActivityManager {
         isProcessingNotifications = true
         
         let event = notificationQueue.removeFirst()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             guard let self = self else { return }
             self.notifyObservers(event: event)
             self.isProcessingNotifications = false
@@ -332,6 +332,32 @@ class BatteryActivityManager {
         guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue() else { return false }
         guard let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef] else { return false }
         return !sources.isEmpty
+    }
+    
+    /// Simulates a battery event for testing purposes
+    func simulateEvent(_ event: BatteryEvent) {
+        enqueueNotification(event)
+        
+        // Also trigger callbacks
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            switch event {
+            case .batteryLevelChanged(let level):
+                self.onBatteryLevelChange?(level)
+            case .powerSourceChanged(let isPluggedIn):
+                self.onPowerSourceChange?(isPluggedIn)
+            case .isChargingChanged(let isCharging):
+                self.onChargingChange?(isCharging)
+            case .lowPowerModeChanged(let isEnabled):
+                self.onPowerModeChange?(isEnabled)
+            case .timeToFullChargeChanged(let time):
+                self.onTimeToFullChargeChange?(time)
+            case .maxCapacityChanged(let capacity):
+                self.onMaxCapacityChange?(capacity)
+            default:
+                break
+            }
+        }
     }
     
     deinit {

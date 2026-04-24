@@ -607,6 +607,22 @@ enum ReminderPresentationStyle: String, CaseIterable, Identifiable, Defaults.Ser
     }
 }
 
+enum BatteryNotificationStyle: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case standard
+    case compact
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .standard:
+            return "Standard"
+        case .compact:
+            return "Compact"
+        }
+    }
+}
+
 // AI Model types for screen assistant
 enum AIModelProvider: String, CaseIterable, Identifiable, Defaults.Serializable {
     case gemini = "Gemini"
@@ -937,7 +953,34 @@ extension Defaults.Keys {
     static let showBatteryPercentage = Key<Bool>("showBatteryPercentage", default: true)
     static let showPowerStatusIcons = Key<Bool>("showPowerStatusIcons", default: true)
     static let playLowBatteryAlertSound = Key<Bool>("playLowBatteryAlertSound", default: true)
-    
+    static let showChargingBatteryNotification = Key<Bool>(
+        "showChargingBatteryNotification",
+        default: Defaults[.showPowerStatusNotifications]
+    )
+    static let showLowBatteryNotification = Key<Bool>(
+        "showLowBatteryNotification",
+        default: Defaults[.showPowerStatusNotifications]
+    )
+    static let showFullBatteryNotification = Key<Bool>(
+        "showFullBatteryNotification",
+        default: Defaults[.showPowerStatusNotifications]
+    )
+    static let chargingNotificationDuration = Key<Double>("chargingNotificationDuration", default: 4)
+    static let lowBatteryNotificationDuration = Key<Double>("lowBatteryNotificationDuration", default: 4)
+    static let fullBatteryNotificationDuration = Key<Double>("fullBatteryNotificationDuration", default: 4)
+    static let lowBatteryNotificationStyle = Key<BatteryNotificationStyle>(
+        "lowBatteryNotificationStyle",
+        default: .standard
+    )
+    static let fullBatteryNotificationStyle = Key<BatteryNotificationStyle>(
+        "fullBatteryNotificationStyle",
+        default: .standard
+    )
+    static let lowBatteryUsesDefaultStroke = Key<Bool>("lowBatteryUsesDefaultStroke", default: false)
+    static let fullBatteryUsesDefaultStroke = Key<Bool>("fullBatteryUsesDefaultStroke", default: false)
+    static let lowBatteryNotificationThreshold = Key<Int>("lowBatteryNotificationThreshold", default: 20)
+    static let fullBatteryNotificationThreshold = Key<Int>("fullBatteryNotificationThreshold", default: 100)
+
     static let lockScreenBatteryShowsBatteryGauge = Key<Bool>(
         "lockScreenWeatherShowsBatteryGauge",
         default: BatteryActivityManager.shared.hasBattery()

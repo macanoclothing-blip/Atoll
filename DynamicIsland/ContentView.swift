@@ -292,6 +292,18 @@ struct ContentView: View {
                 .animation(.smooth(duration: 0.22))
         )
     }
+
+    private var batteryLiveActivityTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity
+                .combined(with: .scale(scale: 0.985, anchor: .top))
+                .combined(with: .offset(y: -3))
+                .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.88, blendDuration: 0.12)),
+            removal: .opacity
+                .combined(with: .scale(scale: 0.992, anchor: .top))
+                .animation(.smooth(duration: 0.24))
+        )
+    }
     
     // Use minimalistic corner radius ONLY when opened, keep normal when closed
     private var activeCornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) {
@@ -382,6 +394,13 @@ struct ContentView: View {
         return DynamicIslandPillShape(cornerRadius: radius)
     }
 
+    private var isBatteryTemporaryActivityVisible: Bool {
+        coordinator.expandingView.type == .battery
+            && coordinator.expandingView.show
+            && vm.notchState == .closed
+            && batteryModel.activeNotification != nil
+    }
+
     /// Resolves the clip/content shape per-screen: pill on non-notch screens
     /// when dynamic island mode is active, standard notch shape otherwise.
     private var resolvedClipShape: AnyShape {
@@ -400,8 +419,10 @@ struct ContentView: View {
             .frame(alignment: .top)
             .padding(.horizontal, notchHorizontalPadding)
             .padding([.horizontal, .bottom], vm.notchState == .open ? 12 : 0)
-            .background(.black)
-            .clipShape(resolvedClipShape)
+            .background(isBatteryTemporaryActivityVisible ? Color.clear : Color.black)
+            .conditionalModifier(!isBatteryTemporaryActivityVisible) { view in
+                view.clipShape(resolvedClipShape)
+            }
             .compositingGroup()
             .shadow(
                 color: ((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
@@ -780,30 +801,9 @@ struct ContentView: View {
                           || coordinator.expandingView.type == .music
                           || expansionMatchesSecondary
 
-                      if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed && Defaults[.showPowerStatusNotifications] {
-                        HStack(spacing: 0) {
-                            HStack {
-                                Text(batteryModel.statusText)
-                                    .font(.subheadline)
-                            }
-
-                            Rectangle()
-                                .fill(.black)
-                                .frame(width: vm.closedNotchSize.width + 10)
-
-                            HStack {
-                                DynamicIslandBatteryView(
-                                    batteryWidth: 30,
-                                    isCharging: batteryModel.isCharging,
-                                    isInLowPowerMode: batteryModel.isInLowPowerMode,
-                                    isPluggedIn: batteryModel.isPluggedIn,
-                                    levelBattery: batteryModel.levelBattery,
-                                    isForNotification: true
-                                )
-                            }
-                            .frame(width: 76, alignment: .trailing)
-                        }
-                        .frame(height: vm.effectiveClosedNotchHeight + (isHovering ? 8 : 0), alignment: .center)
+                      if isBatteryTemporaryActivityVisible {
+                        BatteryTemporaryActivity()
+                              .transition(batteryLiveActivityTransition)
                       } else if isSneakPeekVisibleOnCurrentScreen && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .timer) && (coordinator.sneakPeek.type != .reminder) && !coordinator.sneakPeek.type.isExtensionPayload && ((coordinator.sneakPeek.type != .volume && coordinator.sneakPeek.type != .brightness && coordinator.sneakPeek.type != .backlight) || vm.notchState == .closed) {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(
@@ -944,7 +944,7 @@ struct ContentView: View {
                       }
                   }
               }
-              .conditionalModifier(shouldFixSizeForSneakPeek()) { view in
+              .conditionalModifier(shouldFixSizeForSneakPeek() || isBatteryTemporaryActivityVisible) { view in
                   view
                       .fixedSize()
               }
@@ -1053,6 +1053,51 @@ struct ContentView: View {
                     .frame(width: sideSize, height: sideSize)
             }
         }.frame(height: vm.effectiveClosedNotchHeight + (isHovering ? 8 : 0), alignment: .center)
+    }
+
+    @ViewBuilder
+    private func BatteryTemporaryActivity() -> some View {
+        let notchContentHeight = max(0, vm.effectiveClosedNotchHeight - (isHovering ? 0 : 12))
+        let centerBaseWidth = max(vm.closedNotchSize.width + (isHovering ? 8 : 0), 96)
+
+        if let notification = batteryModel.activeNotification {
+            let height = batteryTemporaryActivityHeight(
+                for: notification.kind,
+                baseHeight: notchContentHeight
+            )
+
+            BatteryTemporaryActivityView(
+                kind: notification.kind,
+                batteryLevel: notification.batteryLevel,
+                isLowPowerMode: batteryModel.isInLowPowerMode,
+                baseWidth: centerBaseWidth,
+                baseHeight: notchContentHeight
+            )
+            .id(notification.id)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(height: height, alignment: .top)
+        }
+    }
+
+    private func batteryTemporaryActivityHeight(for notification: BatteryTemporaryActivityKind, baseHeight: CGFloat) -> CGFloat {
+        switch notification {
+        case .charging:
+            return max(baseHeight, 30)
+        case .lowPower:
+            switch Defaults[.lowBatteryNotificationStyle] {
+            case .compact:
+                return max(baseHeight, 30)
+            case .standard:
+                return baseHeight + 75
+            }
+        case .fullPower:
+            switch Defaults[.fullBatteryNotificationStyle] {
+            case .compact:
+                return max(baseHeight, 30)
+            case .standard:
+                return baseHeight + 70
+            }
+        }
     }
 
     @ViewBuilder

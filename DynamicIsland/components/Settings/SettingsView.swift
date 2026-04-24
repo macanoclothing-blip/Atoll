@@ -728,9 +728,18 @@ struct SettingsView: View {
             // Battery (Charge)
             SettingsSearchEntry(tab: .battery, title: "Show battery indicator", keywords: ["battery hud", "charge"], highlightID: SettingsTab.battery.highlightID(for: "Show battery indicator")),
             SettingsSearchEntry(tab: .battery, title: "Show battery percentage", keywords: ["battery percent"], highlightID: SettingsTab.battery.highlightID(for: "Show battery percentage")),
-            SettingsSearchEntry(tab: .battery, title: "Show power status notifications", keywords: ["notifications", "power"], highlightID: SettingsTab.battery.highlightID(for: "Show power status notifications")),
             SettingsSearchEntry(tab: .battery, title: "Show power status icons", keywords: ["power icons", "charging icon"], highlightID: SettingsTab.battery.highlightID(for: "Show power status icons")),
             SettingsSearchEntry(tab: .battery, title: "Play low battery alert sound", keywords: ["low battery", "alert", "sound"], highlightID: SettingsTab.battery.highlightID(for: "Play low battery alert sound")),
+            SettingsSearchEntry(tab: .battery, title: "Charging", keywords: ["battery charging", "temporary activity"], highlightID: SettingsTab.battery.highlightID(for: "Charging")),
+            SettingsSearchEntry(tab: .battery, title: "Low Power", keywords: ["low power", "battery warning"], highlightID: SettingsTab.battery.highlightID(for: "Low Power")),
+            SettingsSearchEntry(tab: .battery, title: "Fully Charged", keywords: ["full battery", "100%"], highlightID: SettingsTab.battery.highlightID(for: "Fully Charged")),
+            SettingsSearchEntry(tab: .battery, title: "Charging duration", keywords: ["charging seconds", "battery duration"], highlightID: SettingsTab.battery.highlightID(for: "Charging duration")),
+            SettingsSearchEntry(tab: .battery, title: "Low battery duration", keywords: ["low battery seconds", "battery duration"], highlightID: SettingsTab.battery.highlightID(for: "Low battery duration")),
+            SettingsSearchEntry(tab: .battery, title: "Full battery duration", keywords: ["full battery seconds", "battery duration"], highlightID: SettingsTab.battery.highlightID(for: "Full battery duration")),
+            SettingsSearchEntry(tab: .battery, title: "Low battery style", keywords: ["standard compact", "battery style"], highlightID: SettingsTab.battery.highlightID(for: "Low battery style")),
+            SettingsSearchEntry(tab: .battery, title: "Full battery style", keywords: ["standard compact", "battery style"], highlightID: SettingsTab.battery.highlightID(for: "Full battery style")),
+            SettingsSearchEntry(tab: .battery, title: "Low battery threshold", keywords: ["threshold", "battery percent"], highlightID: SettingsTab.battery.highlightID(for: "Low battery threshold")),
+            SettingsSearchEntry(tab: .battery, title: "Full charge threshold", keywords: ["threshold", "100 percent"], highlightID: SettingsTab.battery.highlightID(for: "Full charge threshold")),
 
             // HUDs
             SettingsSearchEntry(tab: .devices, title: "Show Bluetooth device connections", keywords: ["bluetooth", "hud"], highlightID: SettingsTab.devices.highlightID(for: "Show Bluetooth device connections")),
@@ -1305,6 +1314,23 @@ struct GeneralSettings: View {
 }
 
 struct Charge: View {
+    @Default(.showBatteryIndicator) private var showBatteryIndicator
+    @Default(.showBatteryPercentage) private var showBatteryPercentage
+    @Default(.showPowerStatusIcons) private var showPowerStatusIcons
+    @Default(.playLowBatteryAlertSound) private var playLowBatteryAlertSound
+    @Default(.showChargingBatteryNotification) private var showChargingBatteryNotification
+    @Default(.showLowBatteryNotification) private var showLowBatteryNotification
+    @Default(.showFullBatteryNotification) private var showFullBatteryNotification
+    @Default(.chargingNotificationDuration) private var chargingNotificationDuration
+    @Default(.lowBatteryNotificationDuration) private var lowBatteryNotificationDuration
+    @Default(.fullBatteryNotificationDuration) private var fullBatteryNotificationDuration
+    @Default(.lowBatteryNotificationStyle) private var lowBatteryNotificationStyle
+    @Default(.fullBatteryNotificationStyle) private var fullBatteryNotificationStyle
+    @Default(.lowBatteryUsesDefaultStroke) private var lowBatteryUsesDefaultStroke
+    @Default(.fullBatteryUsesDefaultStroke) private var fullBatteryUsesDefaultStroke
+    @Default(.lowBatteryNotificationThreshold) private var lowBatteryNotificationThreshold
+    @Default(.fullBatteryNotificationThreshold) private var fullBatteryNotificationThreshold
+
     private func highlightID(_ title: String) -> String {
         SettingsTab.battery.highlightID(for: title)
     }
@@ -1313,45 +1339,566 @@ struct Charge: View {
         Form {
             if BatteryActivityManager.shared.hasBattery() {
                 Section {
-                    Defaults.Toggle(key: .showBatteryIndicator) {
-                        Text("Show battery indicator")
-                    }
-                    .settingsHighlight(id: highlightID("Show battery indicator"))
-                    Defaults.Toggle(key: .showPowerStatusNotifications) {
-                        Text("Show power status notifications")
-                    }
-                    .settingsHighlight(id: highlightID("Show power status notifications"))
-                    Defaults.Toggle(key: .playLowBatteryAlertSound) {
-                        Text("Play low battery alert sound")
-                    }
-                    .settingsHighlight(id: highlightID("Play low battery alert sound"))
+                    Toggle("Show battery indicator", isOn: $showBatteryIndicator)
+                        .settingsHighlight(id: highlightID("Show battery indicator"))
+
+                    Toggle("Show battery percentage", isOn: $showBatteryPercentage)
+                        .settingsHighlight(id: highlightID("Show battery percentage"))
+
+                    Toggle("Show power status icons", isOn: $showPowerStatusIcons)
+                        .settingsHighlight(id: highlightID("Show power status icons"))
+
+                    Toggle("Play low battery alert sound", isOn: $playLowBatteryAlertSound)
+                        .settingsHighlight(id: highlightID("Play low battery alert sound"))
                 } header: {
-                    Text("General")
+                    Text("Battery in the notch")
+                } footer: {
+                    Text("General settings for the persistent battery indicator in the notch.")
                 }
+
                 Section {
-                    Defaults.Toggle(key: .showBatteryPercentage) {
-                        Text("Show battery percentage")
-                    }
-                    .settingsHighlight(id: highlightID("Show battery percentage"))
-                    Defaults.Toggle(key: .showPowerStatusIcons) {
-                        Text("Show power status icons")
-                    }
-                    .settingsHighlight(id: highlightID("Show power status icons"))
+                    Toggle("Charging", isOn: $showChargingBatteryNotification)
+                        .settingsHighlight(id: highlightID("Charging"))
+
+                    Toggle("Low Power", isOn: $showLowBatteryNotification)
+                        .settingsHighlight(id: highlightID("Low Power"))
+
+                    Toggle("Fully Charged", isOn: $showFullBatteryNotification)
+                        .settingsHighlight(id: highlightID("Fully Charged"))
                 } header: {
-                    Text("Battery Information")
+                    Text("Battery activity")
+                } footer: {
+                    Text("Temporary notifications for battery events.")
                 }
+
+                Section {
+                    batteryDurationRow(
+                        title: "Charging duration",
+                        description: "Choose how long the charging notification stays visible.",
+                        value: $chargingNotificationDuration
+                    )
+                    .disabled(!showChargingBatteryNotification)
+                    .opacity(showChargingBatteryNotification ? 1 : 0.5)
+                    .settingsHighlight(id: highlightID("Charging duration"))
+
+                    batteryDurationRow(
+                        title: "Low battery duration",
+                        description: "Choose how long the low battery notification stays visible.",
+                        value: $lowBatteryNotificationDuration
+                    )
+                    .disabled(!showLowBatteryNotification)
+                    .opacity(showLowBatteryNotification ? 1 : 0.5)
+                    .settingsHighlight(id: highlightID("Low battery duration"))
+
+                    batteryDurationRow(
+                        title: "Full battery duration",
+                        description: "Choose how long the full battery notification stays visible.",
+                        value: $fullBatteryNotificationDuration
+                    )
+                    .disabled(!showFullBatteryNotification)
+                    .opacity(showFullBatteryNotification ? 1 : 0.5)
+                    .settingsHighlight(id: highlightID("Full battery duration"))
+                } header: {
+                    Text("Battery duration")
+                }
+
+                Section {
+                    BatteryNotificationStylePicker(
+                        selection: $lowBatteryNotificationStyle,
+                        kind: .low,
+                        usesDefaultStroke: lowBatteryUsesDefaultStroke
+                    )
+                    .settingsHighlight(id: highlightID("Low battery style"))
+
+                    Toggle("Default stroke", isOn: $lowBatteryUsesDefaultStroke)
+                        .settingsHighlight(id: highlightID("Low battery default stroke"))
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Low battery threshold")
+                            Spacer()
+                            Text("\(lowBatteryNotificationThreshold)%")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(lowBatteryNotificationThreshold) },
+                            set: { lowBatteryNotificationThreshold = Int($0.rounded()) }
+                        ), in: 5...50, step: 1)
+                    }
+                    .padding(.vertical, 4)
+                    .settingsHighlight(id: highlightID("Low battery threshold"))
+                } header: {
+                    Text("Low battery")
+                }
+
+                Section {
+                    BatteryNotificationStylePicker(
+                        selection: $fullBatteryNotificationStyle,
+                        kind: .full,
+                        usesDefaultStroke: fullBatteryUsesDefaultStroke
+                    )
+                    .settingsHighlight(id: highlightID("Full battery style"))
+
+                    Toggle("Default stroke", isOn: $fullBatteryUsesDefaultStroke)
+                        .settingsHighlight(id: highlightID("Full battery default stroke"))
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Full charge threshold")
+                            Spacer()
+                            Text("\(fullBatteryNotificationThreshold)%")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(fullBatteryNotificationThreshold) },
+                            set: { fullBatteryNotificationThreshold = Int($0.rounded()) }
+                        ), in: 80...100, step: 1)
+                    }
+                    .padding(.vertical, 4)
+                    .settingsHighlight(id: highlightID("Full charge threshold"))
+                } header: {
+                    Text("Full battery")
+                }
+
+                Section {
+                    HStack {
+                        Spacer()
+                        Button {
+                            BatteryStatusViewModel.shared.forceTriggerNotification(kind: .charging)
+                        } label: {
+                            Label("Charging", systemImage: "bolt.fill")
+                        }
+                        
+                        Button {
+                            BatteryStatusViewModel.shared.forceTriggerNotification(kind: .lowPower)
+                        } label: {
+                            Label("Low Battery", systemImage: "battery.25")
+                        }
+                        
+                        Button {
+                            BatteryStatusViewModel.shared.forceTriggerNotification(kind: .fullPower)
+                        } label: {
+                            Label("Full Battery", systemImage: "battery.100")
+                        }
+                        Spacer()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Test HUD Activities")
+                } footer: {
+                    Text("Simulate battery events to verify the Dynamic Island notifications.")
+                }
+
             } else {
                 ContentUnavailableView {
-                    VStack(spacing: 16) {
-                        Image("battery.100percent.slash")
-                            .font(.title)
-                        Text("Battery settings and informations are only available on MacBooks")
-                            .font(.title3)
-                    }
+                    Label("Battery settings and informations are only available on MacBooks", systemImage: "battery.100percent.slash")
                 }
             }
         }
         .navigationTitle("Battery")
+        .toolbar {
+            Button("Reset") {
+                resetBatterySettings()
+            }
+        }
+    }
+
+    private func resetBatterySettings() {
+        showBatteryIndicator = BatteryActivityManager.shared.hasBattery()
+        showBatteryPercentage = true
+        showPowerStatusIcons = true
+        playLowBatteryAlertSound = true
+        showChargingBatteryNotification = true
+        showLowBatteryNotification = true
+        showFullBatteryNotification = true
+        chargingNotificationDuration = 4
+        lowBatteryNotificationDuration = 4
+        fullBatteryNotificationDuration = 4
+        lowBatteryNotificationStyle = .standard
+        fullBatteryNotificationStyle = .standard
+        lowBatteryUsesDefaultStroke = false
+        fullBatteryUsesDefaultStroke = false
+        lowBatteryNotificationThreshold = 20
+        fullBatteryNotificationThreshold = 100
+    }
+
+    private func batteryDurationRow(
+        title: LocalizedStringKey,
+        description: LocalizedStringKey,
+        value: Binding<Double>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                Text("\(Int(value.wrappedValue))s")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
+            Slider(value: value, in: 1...8, step: 1)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private enum BatterySettingsPalette {
+    static let cardBackground = Color(red: 0.22, green: 0.21, blue: 0.20)
+    static let cardFill = Color(red: 0.19, green: 0.18, blue: 0.17)
+    static let previewBackground = Color(red: 0.05, green: 0.08, blue: 0.11)
+    static let sliderAccent = Color(red: 0.20, green: 0.48, blue: 0.97)
+}
+
+
+private enum BatteryNotificationPreviewKind {
+    case low
+    case full
+}
+
+private struct BatteryNotificationStylePicker: View {
+    @Binding var selection: BatteryNotificationStyle
+    let kind: BatteryNotificationPreviewKind
+    let usesDefaultStroke: Bool
+
+    private var headerTitle: String {
+        switch kind {
+        case .low:
+            return "Low battery style"
+        case .full:
+            return "Full battery style"
+        }
+    }
+
+    private var headerDescription: String {
+        "Choose whether the alert uses the current detailed card or a compact charging-like layout."
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(headerTitle)
+                        .font(.headline)
+                    Text(headerDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                Text(selection.title)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(BatteryNotificationStyle.allCases) { style in
+                    styleOptionButton(for: style)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func styleOptionButton(for style: BatteryNotificationStyle) -> some View {
+        Button {
+            selection = style
+        } label: {
+            VStack(spacing: 10) {
+                BatteryStylePreviewCard(
+                    style: style,
+                    kind: kind,
+                    isSelected: selection == style,
+                    usesDefaultStroke: usesDefaultStroke
+                )
+
+                Text(style.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(selection == style ? Color.accentColor : .secondary)
+                    .frame(maxWidth: .infinity)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct BatteryStylePreviewCard: View {
+    let style: BatteryNotificationStyle
+    let kind: BatteryNotificationPreviewKind
+    let isSelected: Bool
+    let usesDefaultStroke: Bool
+
+    private var previewActivityKind: BatteryTemporaryActivityKind {
+        switch kind {
+        case .low:
+            return .lowPower
+        case .full:
+            return .fullPower
+        }
+    }
+
+    private var previewBatteryLevel: Int {
+        switch kind {
+        case .low:
+            return 20
+        case .full:
+            return 100
+        }
+    }
+
+    private var previewBaseHeight: CGFloat {
+        28
+    }
+
+    private var strokeColor: Color {
+        if usesDefaultStroke {
+            return .white.opacity(0.2)
+        }
+        switch kind {
+        case .low:
+            return .red.opacity(0.35)
+        case .full:
+            return .green.opacity(0.35)
+        }
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let previewWidth = resolvedPreviewWidth(containerWidth: proxy.size.width)
+            let previewBaseWidth = resolvedPreviewBaseWidth(finalWidth: previewWidth)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(BatterySettingsPalette.previewBackground)
+
+                Image("glassdesktop")
+                    .resizable()
+                    .scaledToFill()
+                    .opacity(0.36)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 3)
+
+                VStack {
+                    Spacer()
+                    BatteryTemporaryActivityView(
+                        kind: previewActivityKind,
+                        batteryLevel: previewBatteryLevel,
+                        isLowPowerMode: false,
+                        baseWidth: previewBaseWidth,
+                        baseHeight: previewBaseHeight,
+                        styleOverride: style,
+                        usesDefaultStrokeOverride: usesDefaultStroke
+                    )
+                    .allowsHitTesting(false)
+                    .padding(.bottom, style == .standard ? 16 : 20)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: style == .standard ? 176 : 150)
+        .clipped()
+    }
+
+    private func resolvedPreviewWidth(containerWidth: CGFloat) -> CGFloat {
+        let horizontalInset: CGFloat = 88
+        let maxWidth: CGFloat = style == .standard ? 320 : 300
+        let availableWidth = max(containerWidth - horizontalInset, 220)
+        return min(availableWidth, maxWidth)
+    }
+
+    private func resolvedPreviewBaseWidth(finalWidth: CGFloat) -> CGFloat {
+        switch style {
+        case .compact:
+            return finalWidth
+        case .standard:
+            let expansion: CGFloat = kind == .low ? 100 : 80
+            return max(finalWidth - expansion, 190)
+        }
+    }
+
+    private var standardPreview: some View {
+        ZStack {
+            NotchShape(topCornerRadius: 14, bottomCornerRadius: 26)
+                .fill(.black)
+                .overlay {
+                    NotchShape(topCornerRadius: 14, bottomCornerRadius: 26)
+                        .stroke(strokeColor, lineWidth: 1)
+                        .mask {
+                            VStack(spacing: 0) {
+                                Color.clear
+                                    .frame(height: 6)
+                                Rectangle()
+                                    .fill(.white)
+                            }
+                        }
+                }
+
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: kind == .low ? 2 : 3) {
+                    HStack(spacing: 5) {
+                        Text(kind == .low ? "Battery Low" : "Full Battery")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+
+                        Text(kind == .low ? "20%" : "100%")
+                            .font(.system(size: kind == .low ? 10 : 10.5, weight: .semibold))
+                            .foregroundStyle(kind == .low ? Color.red : Color.green)
+                    }
+
+                    if kind == .low {
+                        Text("Turn on Low Power Mode or it\nis recommended to charge it.")
+                            .font(.system(size: 8.5, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.45))
+                            .lineLimit(2)
+                    } else {
+                        Text("Your Mac is fully charged.")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.45))
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                if kind == .low {
+                    lowIndicator
+                } else {
+                    fullIndicator
+                }
+            }
+            .padding(.leading, 20)
+            .padding(.trailing, 10)
+            .padding(.vertical, 10)
+        }
+        .frame(height: kind == .low ? 56 : 52)
+    }
+
+    private var compactPreview: some View {
+        let tint: Color = kind == .low ? .red : .green
+        let batteryLevel = kind == .low ? 20 : 100
+
+        return ZStack {
+            NotchShape(topCornerRadius: 10, bottomCornerRadius: 15)
+                .fill(.black)
+                .overlay {
+                    NotchShape(topCornerRadius: 10, bottomCornerRadius: 15)
+                        .stroke(strokeColor, lineWidth: 1)
+                        .mask {
+                            VStack(spacing: 0) {
+                                Color.clear
+                                    .frame(height: 4)
+                                Rectangle()
+                                    .fill(.white)
+                            }
+                        }
+                }
+
+            HStack {
+                Text(kind == .low ? "Low Battery" : "Full Battery")
+                    .foregroundStyle(.white.opacity(0.8))
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+
+                Spacer(minLength: 8)
+
+                HStack(spacing: 6) {
+                    Text("\(batteryLevel)%")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(tint)
+
+                    HStack(spacing: 1.5) {
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(tint.opacity(0.3))
+
+                            Rectangle()
+                                .fill(tint.gradient)
+                                .frame(width: 28 * (CGFloat(batteryLevel) / 100))
+                        }
+                        .frame(width: 28, height: 16)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+                        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                            .fill(batteryLevel == 100 ? tint.gradient : tint.opacity(0.3).gradient)
+                            .frame(width: 2, height: 6)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+        }
+        .frame(height: 28)
+    }
+
+    private var lowIndicator: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.red.opacity(0.2))
+                .frame(width: 44, height: 26)
+
+            HStack(spacing: 2) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.red.opacity(0.4))
+                    .frame(width: 26, height: 16)
+
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.red.opacity(0.4))
+                    .frame(width: 2, height: 5)
+            }
+
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color.red.gradient)
+                .frame(width: 5, height: 9)
+                .offset(x: -9)
+
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.red.opacity(0.9), lineWidth: 1.2)
+                .frame(width: 16, height: 18)
+                .offset(x: -9)
+        }
+    }
+
+    private var fullIndicator: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.green.opacity(0.2))
+                .frame(width: 44, height: 26)
+
+            HStack(spacing: 2) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.green.opacity(0.4))
+                    .frame(width: 28, height: 16)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                            .fill(Color.green.gradient)
+                            .frame(width: 20, height: 8)
+                    }
+
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.green.opacity(0.4))
+                    .frame(width: 2, height: 5)
+            }
+        }
     }
 }
 

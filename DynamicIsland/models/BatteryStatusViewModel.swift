@@ -26,15 +26,23 @@ import Foundation
 import IOKit.ps
 import SwiftUI
 
+enum BatteryTemporaryActivityKind: Equatable {
+    case charging
+    case lowPower
+    case fullPower
+}
+
+struct BatteryTemporaryActivityState: Identifiable, Equatable {
+    let id = UUID()
+    let kind: BatteryTemporaryActivityKind
+    let batteryLevel: Int
+}
+
 /// A view model that manages and monitors the battery status of the device
 class BatteryStatusViewModel: ObservableObject {
 
-    private var wasCharging: Bool = false
-    private var powerSourceChangedCallback: IOPowerSourceCallbackType?
-    private var runLoopSource: Unmanaged<CFRunLoopSource>?
     var animations: DynamicIslandAnimations = DynamicIslandAnimations()
     private let lowBatteryAlertSoundPlayer = AudioPlayer()
-    private let lowBatteryAlertThresholds: [Float] = [20, 15, 10, 5]
 
     @ObservedObject var coordinator = DynamicIslandViewCoordinator.shared
 
@@ -46,6 +54,7 @@ class BatteryStatusViewModel: ObservableObject {
     @Published private(set) var isInitial: Bool = false
     @Published private(set) var timeToFullCharge: Int = 0
     @Published private(set) var statusText: String = ""
+    @Published private(set) var activeNotification: BatteryTemporaryActivityState?
 
     private let managerBattery = BatteryActivityManager.shared
     private var managerBatteryId: Int?
@@ -82,36 +91,50 @@ class BatteryStatusViewModel: ObservableObject {
             withAnimation {
                 self.isPluggedIn = isPluggedIn
                 self.statusText = isPluggedIn ? String(localized: "Plugged In") : String(localized: "Unplugged")
-                self.notifyImportanChangeStatus()
             }
 
         case .batteryLevelChanged(let level):
             print("🔋 Battery level: \(Int(level))%")
             let previousLevel = self.levelBattery
-            self.handleLowBatteryAlertIfNeeded(previousLevel: previousLevel, newLevel: level)
             withAnimation {
                 self.levelBattery = level
             }
+            self.handleLevelBasedNotifications(previousLevel: previousLevel, newLevel: level)
 
         case .lowPowerModeChanged(let isEnabled):
             print("⚡ Low power mode: \(isEnabled ? "Enabled" : "Disabled")")
-            self.notifyImportanChangeStatus()
+            let previousValue = self.isInLowPowerMode
             withAnimation {
                 self.isInLowPowerMode = isEnabled
                 self.statusText = String(localized: "Low Power: \(self.isInLowPowerMode ? String(localized: "On") : String(localized: "Off"))")
+            }
+            if !previousValue && isEnabled && Defaults[.showLowBatteryNotification] {
+                self.statusText = String(localized: "Low battery")
+                self.presentTemporaryActivity(
+                    .lowPower,
+                    duration: Defaults[.lowBatteryNotificationDuration],
+                    displayLevel: Int(self.levelBattery.rounded())
+                )
             }
 
         case .isChargingChanged(let isCharging):
             print("🔌 Charging: \(isCharging ? "Yes" : "No")")
             print("maxCapacity: \(self.maxCapacity)")
             print("levelBattery: \(self.levelBattery)")
-            self.notifyImportanChangeStatus()
+            let previousValue = self.isCharging
             withAnimation {
                 self.isCharging = isCharging
                 self.statusText =
                     isCharging
                     ? String(localized: "Charging battery")
                     : (self.levelBattery < self.maxCapacity ? String(localized: "Not charging") : String(localized: "Full charge"))
+            }
+            if !previousValue && isCharging && Defaults[.showChargingBatteryNotification] {
+                self.presentTemporaryActivity(
+                    .charging,
+                    duration: Defaults[.chargingNotificationDuration],
+                    displayLevel: Int(self.levelBattery.rounded())
+                )
             }
 
         case .timeToFullChargeChanged(let time):
@@ -145,32 +168,106 @@ class BatteryStatusViewModel: ObservableObject {
         }
     }
 
-    /// Notifies important changes in the battery status with an optional delay
-    /// - Parameter delay: The delay before notifying the change, default is 0.0
-    private func notifyImportanChangeStatus(delay: Double = 0.0) {
-        Task {
-            try? await Task.sleep(for: .seconds(delay))
-            self.coordinator.toggleExpandingView(status: true, type: .battery)
+    private func handleLevelBasedNotifications(previousLevel: Float, newLevel: Float) {
+        if shouldTriggerLowBatteryNotification(previousLevel: previousLevel, newLevel: newLevel) {
+            self.statusText = String(localized: "Low battery")
+            self.presentTemporaryActivity(
+                .lowPower,
+                duration: Defaults[.lowBatteryNotificationDuration],
+                displayLevel: Int(newLevel.rounded())
+            )
+
+            if Defaults[.playLowBatteryAlertSound] {
+                playLowBatteryAlertSound()
+            }
+        }
+
+        if shouldTriggerFullBatteryNotification(previousLevel: previousLevel, newLevel: newLevel) {
+            self.statusText = String(localized: "Full charge")
+            self.presentTemporaryActivity(
+                .fullPower,
+                duration: Defaults[.fullBatteryNotificationDuration],
+                displayLevel: Int(newLevel.rounded())
+            )
         }
     }
 
-    private func handleLowBatteryAlertIfNeeded(previousLevel: Float, newLevel: Float) {
-        guard Defaults[.playLowBatteryAlertSound] else { return }
-        guard !isPluggedIn, !isCharging else { return }
-        guard newLevel < previousLevel else { return }
+    private func shouldTriggerLowBatteryNotification(previousLevel: Float, newLevel: Float) -> Bool {
+        guard Defaults[.showLowBatteryNotification] else { return false }
+        guard !isPluggedIn, !isCharging else { return false }
+        guard newLevel < previousLevel else { return false }
 
-        for threshold in lowBatteryAlertThresholds {
-            if previousLevel >= threshold && newLevel < threshold {
-                self.statusText = String(localized: "Low battery")
-                notifyImportanChangeStatus()
-                playLowBatteryAlertSound()
-                break
-            }
+        let threshold = Float(Defaults[.lowBatteryNotificationThreshold])
+        return previousLevel > threshold && newLevel <= threshold
+    }
+
+    private func shouldTriggerFullBatteryNotification(previousLevel: Float, newLevel: Float) -> Bool {
+        guard Defaults[.showFullBatteryNotification] else { return false }
+        guard newLevel > previousLevel else { return false }
+
+        let threshold = Float(Defaults[.fullBatteryNotificationThreshold])
+        return previousLevel < threshold && newLevel >= threshold
+    }
+
+    private func presentTemporaryActivity(
+        _ kind: BatteryTemporaryActivityKind,
+        duration: TimeInterval,
+        displayLevel: Int? = nil
+    ) {
+        activeNotification = BatteryTemporaryActivityState(
+            kind: kind,
+            batteryLevel: resolvedNotificationLevel(for: kind, override: displayLevel)
+        )
+        coordinator.toggleExpandingView(
+            status: true,
+            type: .battery,
+            duration: duration
+        )
+    }
+
+    private func resolvedNotificationLevel(for kind: BatteryTemporaryActivityKind, override: Int?) -> Int {
+        if let override {
+            return clampedBatteryLevel(override)
         }
+
+        let currentLevel = Int(levelBattery.rounded())
+
+        switch kind {
+        case .charging:
+            return clampedBatteryLevel(currentLevel)
+        case .lowPower:
+            return clampedBatteryLevel(min(currentLevel, Defaults[.lowBatteryNotificationThreshold]))
+        case .fullPower:
+            return clampedBatteryLevel(max(currentLevel, Defaults[.fullBatteryNotificationThreshold]))
+        }
+    }
+
+    private func clampedBatteryLevel(_ value: Int) -> Int {
+        max(0, min(value, 100))
     }
 
     private func playLowBatteryAlertSound() {
         lowBatteryAlertSoundPlayer.play(fileName: "lowbattery", fileExtension: "mp3")
+    }
+
+    /// Forces a notification to appear for testing purposes
+    func forceTriggerNotification(kind: BatteryTemporaryActivityKind) {
+        let duration: TimeInterval
+        let previewLevel: Int
+
+        switch kind {
+        case .charging:
+            duration = Defaults[.chargingNotificationDuration]
+            previewLevel = min(max(Int(levelBattery.rounded()), 67), 96)
+        case .lowPower:
+            duration = Defaults[.lowBatteryNotificationDuration]
+            previewLevel = max(5, min(Defaults[.lowBatteryNotificationThreshold], 20))
+        case .fullPower:
+            duration = Defaults[.fullBatteryNotificationDuration]
+            previewLevel = Defaults[.fullBatteryNotificationThreshold]
+        }
+
+        presentTemporaryActivity(kind, duration: duration, displayLevel: previewLevel)
     }
 
     deinit {

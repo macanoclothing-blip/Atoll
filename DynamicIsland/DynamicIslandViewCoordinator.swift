@@ -97,6 +97,7 @@ struct ExpandedItem {
     var type: SneakContentType = .battery
     var value: CGFloat = 0
     var browser: BrowserType = .chromium
+    var duration: TimeInterval = 3
 }
 
 class DynamicIslandViewCoordinator: ObservableObject {
@@ -404,7 +405,8 @@ class DynamicIslandViewCoordinator: ObservableObject {
         status: Bool,
         type: SneakContentType,
         value: CGFloat = 0,
-        browser: BrowserType = .chromium
+        browser: BrowserType = .chromium,
+        duration: TimeInterval = 3
     ) {
         Task { @MainActor in
             withAnimation(.smooth) {
@@ -412,6 +414,7 @@ class DynamicIslandViewCoordinator: ObservableObject {
                 self.expandingView.type = type
                 self.expandingView.value = value
                 self.expandingView.browser = browser
+                self.expandingView.duration = duration
             }
         }
     }
@@ -424,11 +427,12 @@ class DynamicIslandViewCoordinator: ObservableObject {
                 expandingViewTask?.cancel()
                 // Only auto-hide for battery, not for downloads (DownloadManager handles that)
                 if expandingView.type != .download {
-                    let duration: TimeInterval = 3
+                    let duration = max(0.1, expandingView.duration)
+                    let currentType = expandingView.type
                     expandingViewTask = Task { [weak self] in
                         try? await Task.sleep(for: .seconds(duration))
                         guard let self = self, !Task.isCancelled else { return }
-                        self.toggleExpandingView(status: false, type: .battery)
+                        self.toggleExpandingView(status: false, type: currentType, duration: duration)
                     }
                 }
             } else {
