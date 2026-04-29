@@ -1139,6 +1139,14 @@ struct ContentView: View {
                                 .foregroundStyle(timerManager.timerColor)
                                 .padding(.trailing, 8)
                                 .opacity((coordinator.expandingView.show && coordinator.expandingView.type == .timer && Defaults[.enableSneakPeek] && Defaults[.sneakPeekStyles] == .inline) ? 1 : 0)
+                        } else if Defaults[.showSongMetadataInClosedNotch] && isNonNotchScreen && !musicManager.songTitle.isEmpty {
+                            MarqueeText(
+                                .constant("\(musicManager.songTitle) • \(musicManager.artistName)"),
+                                textColor: Defaults[.coloredSpectrogram] ? Color(nsColor: musicManager.avgColor) : Color.gray,
+                                minDuration: 3,
+                                frameWidth: max(0, effectiveCenterWidth - 16)
+                            )
+                            .padding(.horizontal, 8)
                         }
                     }
                     .clipped()

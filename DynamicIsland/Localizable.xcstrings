@@ -5623,9 +5623,6 @@
         }
       }
     },
-    "Amazon Music" : {
-
-    },
     "Animation" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -38036,6 +38033,9 @@
           }
         }
       }
+    },
+    "Show song title and artist on non-notch displays" : {
+
     },
     "Show start time after event begins" : {
       "localizations" : {

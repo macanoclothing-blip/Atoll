@@ -2633,6 +2633,11 @@ struct Media: View {
                         }
                     }
                 }
+                
+                Defaults.Toggle(key: .showSongMetadataInClosedNotch) {
+                    Text("Show song title and artist on non-notch displays")
+                }
+                .settingsHighlight(id: highlightID("Show song title and artist in closed notch"))
             } header: {
                 Text("Media playback live activity")
             }
